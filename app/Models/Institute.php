@@ -16,4 +16,9 @@ class Institute extends Model
             ->withPivot('role')
             ->withTimestamps();
     }
+
+    public function subscription()
+    {
+        return $this->hasOne(InstituteSubscription::class);
+    }
 }

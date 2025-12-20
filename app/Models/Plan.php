@@ -10,4 +10,12 @@ class Plan extends Model
     use SoftDeletes;
     //
     protected $guarded  = ['id'];
+
+    public function subscriptions()
+    {
+        return $this->hasMany(InstituteSubscription::class);
+    }
+
+
+
 }

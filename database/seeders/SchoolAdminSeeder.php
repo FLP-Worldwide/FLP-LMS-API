@@ -11,7 +11,13 @@ class SchoolAdminSeeder extends Seeder
 {
     public function run(): void
     {
-        $school = Institute::where('type', 'school')->first();
+        // ✅ Always fetch by unique name (safer than type)
+        $school = Institute::where('name', 'DPS Jaipur')->first();
+
+        if (!$school) {
+            $this->command->warn('School institute not found. Skipping SchoolAdminSeeder.');
+            return;
+        }
 
         $user = User::updateOrCreate(
             ['email' => 'school@dps.com'],
@@ -19,13 +25,13 @@ class SchoolAdminSeeder extends Seeder
                 'name' => 'DPS School Admin',
                 'password' => Hash::make('School@123'),
                 'role' => 'school_admin',
+                'account_type' => 'school',
                 'email_verified_at' => now(),
             ]
         );
 
-        // Attach user to school
         $user->institutes()->syncWithoutDetaching([
-            $school->id => ['role' => 'admin']
+            $school->id => ['role' => 'admin'],
         ]);
     }
 }
