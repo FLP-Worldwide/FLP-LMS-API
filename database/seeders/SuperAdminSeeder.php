@@ -13,6 +13,7 @@ class SuperAdminSeeder extends Seeder
         User::updateOrCreate(
             ['email' => 'admin@erp.com'],
             [
+                'uid' => 'US'.rand(10000,99999),
                 'name' => 'Super Admin',
                 'password' => Hash::make('Admin@123'),
                 'role' => 'super_admin',

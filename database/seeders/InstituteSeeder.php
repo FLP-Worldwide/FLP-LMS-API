@@ -13,6 +13,7 @@ class InstituteSeeder extends Seeder
         Institute::updateOrCreate(
             ['name' => 'DPS Jaipur'],
             [
+                'sid' => 'SCH'.rand(10000,99999),
                 'type' => 'school',
                 'email' => 'contact@dpsjaipur.com',
                 'phone' => '9876543210',
@@ -27,6 +28,7 @@ class InstituteSeeder extends Seeder
         Institute::updateOrCreate(
             ['name' => 'Alpha Coaching Institute'],
             [
+                'sid' => 'INST'.rand(10000,99999),
                 'type' => 'coaching',
                 'email' => 'info@alphacoaching.com',
                 'phone' => '9123456789',

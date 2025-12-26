@@ -12,7 +12,7 @@ class Student extends Model
 
     //
     protected $guarded  = ['id'];
-
+protected $hidden = ['created_at','updated_at','deleted_at'];
     public function details()
     {
         return $this->hasOne(StudentDetail::class);

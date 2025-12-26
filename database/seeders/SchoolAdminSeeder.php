@@ -22,6 +22,7 @@ class SchoolAdminSeeder extends Seeder
         $user = User::updateOrCreate(
             ['email' => 'school@dps.com'],
             [
+                'uid' => 'US'.rand(10000,99999),
                 'name' => 'DPS School Admin',
                 'password' => Hash::make('School@123'),
                 'role' => 'school_admin',

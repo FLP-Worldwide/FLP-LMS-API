@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('institutes', function (Blueprint $table) {
             $table->id();
-
+            $table->uuid('sid')->unique();
             $table->string('name');
             $table->enum('type', ['school', 'coaching']);
 

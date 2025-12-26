@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class AuthController extends Controller
 {
@@ -15,55 +16,43 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        if (!$token = Auth::guard('api')->attempt($credentials)) {
+        if (!$token = JWTAuth::attempt($credentials)) {
             return response()->json([
+                'status' => 'error',
                 'message' => 'Invalid credentials'
             ], 401);
         }
 
-        $user = Auth::guard('api')->user();
+        $user = auth()->user();
 
         return response()->json([
-            "data" => [
+            'data' => [
                 'access_token' => $token,
                 'token_type'   => 'bearer',
-                'expires_in'   => Auth::guard('api')->factory()->getTTL() * 60,
-
-                // SIMPLE USER INFO
+                'expires_in'   => config('jwt.ttl') * 60 * 7,
                 'role'         => $user->role,
                 'account_type' => $user->account_type,
             ]
         ]);
     }
 
-
-    public function me()
+    public function refresh()
     {
-        return response()->json(Auth::guard('api')->user());
+        return response()->json([
+            'data' => [
+                'access_token' => JWTAuth::refresh(),
+                'token_type'   => 'bearer',
+                'expires_in'   => config('jwt.ttl') * 60,
+            ]
+        ]);
     }
 
     public function logout()
     {
-        Auth::guard('api')->logout();
+        JWTAuth::invalidate(JWTAuth::getToken());
 
-        return response()->json(['message' => 'Logged out successfully']);
-    }
-
-    public function refresh()
-    {
-        return $this->respondWithToken(
-            Auth::guard('api')->refresh()
-        );
-    }
-
-    protected function respondWithToken($token)
-    {
         return response()->json([
-            "data" => [
-                'access_token' => $token,
-                'token_type'   => 'bearer',
-                'expires_in'   => Auth::guard('api')->factory()->getTTL() * 160,
-            ]
+            'message' => 'Logged out successfully'
         ]);
     }
 }

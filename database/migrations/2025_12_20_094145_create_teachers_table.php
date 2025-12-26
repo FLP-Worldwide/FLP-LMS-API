@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('teachers', function (Blueprint $table) {
             $table->id();
-
+            $table->uuid('tuid')->unique();
             // Multi-tenant
             $table->foreignId('institute_id')->constrained()->cascadeOnDelete();
 

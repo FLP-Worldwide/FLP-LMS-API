@@ -9,6 +9,7 @@ class Institute extends Model
 {
     use SoftDeletes;
     protected $guarded  = ['id'];
+    protected $hidden = ['created_at','updated_at','deleted_at'];
 
     public function users()
     {
@@ -21,4 +22,10 @@ class Institute extends Model
     {
         return $this->hasOne(InstituteSubscription::class);
     }
+
+    public function leadSourceTypes()
+{
+    return $this->hasMany(LeadSourceType::class);
+}
+
 }

@@ -21,6 +21,7 @@ class CoachingAdminSeeder extends Seeder
         $user = User::updateOrCreate(
             ['email' => 'coaching@alpha.com'],
             [
+                'uid' => 'US'.rand(10000,99999),
                 'name' => 'Coaching Admin',
                 'password' => Hash::make('Coaching@123'),
                 'role' => 'coaching_admin',

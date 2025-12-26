@@ -21,6 +21,7 @@ class User extends Authenticatable implements JWTSubject
      * @var list<string>
      */
     protected $guarded = ['id'];
+
     public function institutes()
     {
         return $this->belongsToMany(Institute::class, 'institute_users')
@@ -62,4 +63,13 @@ class User extends Authenticatable implements JWTSubject
             'role' => $this->role,
         ];
     }
+
+    public function permissions()
+    {
+        return $this->belongsToMany(
+            Permission::class,
+            'user_permissions'
+        )->withTimestamps();
+    }
+
 }
