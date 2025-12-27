@@ -9,11 +9,16 @@ use App\Http\Controllers\Academics\TeacherController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Enquiry\EnquiryController;
+use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\FinanceAccountController;
 use App\Http\Controllers\FinanceCategoryController;
+use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\Lead\LeadClosingReasonController;
 use App\Http\Controllers\Lead\LeadSetup;
 use App\Http\Controllers\Lead\AreaController;
 use App\Http\Controllers\Lead\ReferredByController;
+use App\Http\Controllers\PayeeController;
+use App\Http\Controllers\PayerController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -113,6 +118,25 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
 
     Route::prefix('finance')->group(function(){
         Route::apiResource('category', FinanceCategoryController::class);
+        Route::apiResource('payee', PayeeController::class);
+        Route::apiResource('payer', PayerController::class);
+
+        Route::post('/accounts', [FinanceAccountController::class, 'store']);
+        Route::get('/accounts', [FinanceAccountController::class, 'index']);
+        Route::get('/accounts/{type}/{id}', [FinanceAccountController::class, 'show']);
+
+
+        Route::post('/expenses', [ExpenseController::class, 'store']);
+        Route::get('/expenses', [ExpenseController::class, 'index']);
+        Route::get('/expenses/{id}', [ExpenseController::class, 'show']);
+
+        Route::post('/incomes', [IncomeController::class, 'store']);
+        Route::get('/incomes', [IncomeController::class, 'index']);
+
+
+
     });
+
+
 
 });

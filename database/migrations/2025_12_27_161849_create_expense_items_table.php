@@ -11,12 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('finance_categories', function (Blueprint $table) {
+        Schema::create('expense_items', function (Blueprint $table) {
             $table->id();
-             $table->foreignId('institute_id')->constrained()->cascadeOnDelete();
-            $table->string('name');
+
+            $table->foreignId('expense_id')->constrained()->cascadeOnDelete();
+
+            // Category (Fuel, Rent, Salary etc.)
+            $table->string('category');
+
             $table->text('description')->nullable();
-            $table->enum('type',['Income','Expense']);
+
+            $table->integer('quantity')->default(1);
+            $table->decimal('amount', 12, 2);
+
             $table->softDeletes();
             $table->timestamps();
         });
@@ -27,6 +34,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('finance_categories');
+        Schema::dropIfExists('expense_items');
     }
 };

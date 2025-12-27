@@ -8,8 +8,18 @@ use Illuminate\Http\Request;
 class FinanceCategoryController extends Controller
 {
     // All Categories
-    public function index() {
-        return response()->json(FinanceCategory::all(),200);
+    public function index(Request $request)
+    {
+        $query = FinanceCategory::query();
+
+        if ($request->type) {
+            $query->where('type', ucfirst(strtolower($request->type)));
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $query->orderBy('name')->get(),
+        ]);
     }
 
     // Create
