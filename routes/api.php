@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Academics\BatchController;
 use App\Http\Controllers\Academics\ClassController;
 use App\Http\Controllers\Academics\ClassRoutineController;
 use App\Http\Controllers\Academics\RoomController;
@@ -8,17 +9,30 @@ use App\Http\Controllers\Academics\TeacherAttendanceController;
 use App\Http\Controllers\Academics\TeacherController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Assets\AssetAssignmentController;
+use App\Http\Controllers\Assets\AssetLocationController;
+use App\Http\Controllers\Assets\AssetCategoryController;
+use App\Http\Controllers\Assets\AssetController;
+use App\Http\Controllers\Assets\PurchaseController;
+use App\Http\Controllers\Assets\SupplierController;
+use App\Http\Controllers\CourseController;
 use App\Http\Controllers\Enquiry\EnquiryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\FinanceAccountController;
 use App\Http\Controllers\FinanceCategoryController;
 use App\Http\Controllers\IncomeController;
+use App\Http\Controllers\Inventory\InventoryCategoryController;
+use App\Http\Controllers\Inventory\InventoryItemController;
+use App\Http\Controllers\Inventory\InventoryPurchaseController;
+use App\Http\Controllers\Inventory\InventoryPurchasePaymentController;
+use App\Http\Controllers\Inventory\InventorySupplierController;
 use App\Http\Controllers\Lead\LeadClosingReasonController;
 use App\Http\Controllers\Lead\LeadSetup;
 use App\Http\Controllers\Lead\AreaController;
 use App\Http\Controllers\Lead\ReferredByController;
 use App\Http\Controllers\PayeeController;
 use App\Http\Controllers\PayerController;
+use App\Http\Controllers\StaffManage\LeaveController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -116,6 +130,28 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
     Route::post('/teacher-attendance', [TeacherAttendanceController::class, 'store']);
     Route::put('/teacher-attendance/{date}', [TeacherAttendanceController::class, 'bulkUpdate']);
 
+    Route::prefix('leave')->group(function () {
+        Route::apiResource('categories', LeaveController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+    });
+
+    Route::prefix('inventory')->group(function () {
+        Route::apiResource('suppliers', InventorySupplierController::class);
+        Route::apiResource('category', InventoryCategoryController::class);
+        Route::apiResource('item', InventoryItemController::class);
+
+        Route::get('purchase', [InventoryPurchaseController::class, 'index']);
+        Route::post('purchase', [InventoryPurchaseController::class, 'store']);
+        Route::get('purchase/{id}', [InventoryPurchaseController::class, 'show']);
+        Route::post('purchase/{id}', [InventoryPurchaseController::class, 'update']);
+        Route::delete('purchase/{id}', [InventoryPurchaseController::class, 'destroy']);
+
+        Route::get('purchase/{id}/payments', [InventoryPurchasePaymentController::class, 'index']);
+        Route::post('purchase/payment', [InventoryPurchasePaymentController::class, 'store']);
+        Route::post('purchase/payment/{id}', [InventoryPurchasePaymentController::class, 'update']);
+        Route::delete('purchase/payment/{id}', [InventoryPurchasePaymentController::class, 'destroy']);
+    });
+
     Route::prefix('finance')->group(function(){
         Route::apiResource('category', FinanceCategoryController::class);
         Route::apiResource('payee', PayeeController::class);
@@ -133,9 +169,19 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::post('/incomes', [IncomeController::class, 'store']);
         Route::get('/incomes', [IncomeController::class, 'index']);
 
-
-
     });
+
+    Route::apiResource('asset-locations', AssetLocationController::class);
+    Route::apiResource('asset-categories', AssetCategoryController::class);
+    Route::apiResource('assets', AssetController::class);
+    Route::apiResource('supplier-master', SupplierController::class);
+    Route::get('supplier-master/{id}/categories', [SupplierController::class, 'supplierCategories']);
+    Route::apiResource('purchase-assets', PurchaseController::class);
+
+    Route::apiResource('asset-assignments', AssetAssignmentController::class);
+
+    Route::apiResource('courses', CourseController::class);
+    Route::apiResource('batches', BatchController::class);
 
 
 
