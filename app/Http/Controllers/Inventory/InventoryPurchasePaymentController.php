@@ -15,6 +15,7 @@ class InventoryPurchasePaymentController extends Controller
     ========================================================= */
     public function store(Request $request)
     {
+
         $validated = $request->validate([
             'inventory_purchase_id' => 'required|exists:inventory_purchases,id',
             'payment_date' => 'required|date',
@@ -31,7 +32,7 @@ class InventoryPurchasePaymentController extends Controller
                 $validated['inventory_purchase_id']
             );
 
-            /* 🚫 Prevent over payment */
+
             $due = $purchase->total_amount - $purchase->paid_amount;
 
             if ($validated['amount'] > $due) {
@@ -41,7 +42,7 @@ class InventoryPurchasePaymentController extends Controller
                 ], 422);
             }
 
-            /* 💰 Save Payment */
+
             InventoryPurchasePayment::create($validated);
 
             /* 🔄 Update Purchase Totals */

@@ -11,28 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('inventory_purchase_payments', function (Blueprint $table) {
+        Schema::create('inventory_sale_payments', function (Blueprint $table) {
             $table->id();
-
             $table->foreignId('institute_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('inventory_purchase_id')
-                  ->constrained('inventory_purchases')
-                  ->cascadeOnDelete();
+            $table->foreignId('inventory_sale_id')->constrained()->cascadeOnDelete();
 
-            $table->date('payment_date');
+            $table->date('date');
             $table->decimal('amount', 12, 2);
-
-            $table->enum('payment_mode', [
-                'cash', 'upi', 'bank', 'cheque', 'card'
-            ]);
-
+            $table->string('payment_method');
             $table->string('reference_no')->nullable();
-            $table->text('note')->nullable();
+            $table->string('receipt')->nullable();
 
             $table->softDeletes();
             $table->timestamps();
-
-            $table->index(['institute_id']);
         });
     }
 
@@ -41,6 +32,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('inventory_purchase_payments');
+        Schema::dropIfExists('inventory_sale_payments');
     }
 };

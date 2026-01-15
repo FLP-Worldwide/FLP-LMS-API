@@ -6,22 +6,16 @@ use App\Traits\BelongsToInstitute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Course extends Model
+class FeesStructureInstallment extends Model
 {
     use SoftDeletes, BelongsToInstitute;
     //
     protected $guarded  = ['id'];
     protected $hidden = ['created_at','updated_at','deleted_at'];
 
-    public function classRoom()
+    public function structure()
     {
-        return $this->belongsTo(ClassRoom::class, 'standard_id');
+        return $this->belongsTo(FeesStructure::class);
     }
-
-    public function batches()
-    {
-        return $this->hasMany(Batch::class);
-    }
-
 
 }

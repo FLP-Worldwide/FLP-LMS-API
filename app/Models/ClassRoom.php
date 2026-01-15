@@ -11,12 +11,22 @@ class ClassRoom extends Model
     use SoftDeletes, BelongsToInstitute;
     //
     protected $guarded  = ['id'];
-
+    protected $hidden = ['created_at','updated_at','deleted_at'];
 
     protected $casts = [
         'created_on' => 'date',
         'is_active'  => 'boolean',
     ];
+
+    public function courses()
+    {
+        return $this->hasMany(Course::class, 'standard_id');
+    }
+
+    public function routines()
+    {
+        return $this->hasMany(ClassRoutine::class, 'class_id');
+    }
 
 
 }

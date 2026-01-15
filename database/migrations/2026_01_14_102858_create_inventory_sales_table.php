@@ -11,28 +11,27 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('inventory_purchase_payments', function (Blueprint $table) {
+        Schema::create('inventory_sales', function (Blueprint $table) {
             $table->id();
-
             $table->foreignId('institute_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('inventory_purchase_id')
-                  ->constrained('inventory_purchases')
-                  ->cascadeOnDelete();
 
-            $table->date('payment_date');
-            $table->decimal('amount', 12, 2);
-
-            $table->enum('payment_mode', [
-                'cash', 'upi', 'bank', 'cheque', 'card'
-            ]);
+            $table->enum('role', ['student', 'staff']);
+            $table->unsignedBigInteger('user_id');
 
             $table->string('reference_no')->nullable();
-            $table->text('note')->nullable();
+            $table->date('date');
+
+            $table->enum('payment_status', ['paid', 'unpaid']);
+            $table->text('description')->nullable();
+
+            $table->string('bill_copy')->nullable();
+
+            $table->decimal('total_amount', 12, 2)->default(0);
 
             $table->softDeletes();
             $table->timestamps();
 
-            $table->index(['institute_id']);
+            $table->index(['institute_id', 'role', 'user_id']);
         });
     }
 
@@ -41,6 +40,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('inventory_purchase_payments');
+        Schema::dropIfExists('inventory_sales');
     }
 };

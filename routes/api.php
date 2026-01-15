@@ -18,6 +18,9 @@ use App\Http\Controllers\Assets\SupplierController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\Enquiry\EnquiryController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\Fees\FeesStructureController;
+use App\Http\Controllers\Fees\FeesStructureInstallmentController;
+use App\Http\Controllers\Fees\FeesTypeController;
 use App\Http\Controllers\FinanceAccountController;
 use App\Http\Controllers\FinanceCategoryController;
 use App\Http\Controllers\IncomeController;
@@ -25,6 +28,7 @@ use App\Http\Controllers\Inventory\InventoryCategoryController;
 use App\Http\Controllers\Inventory\InventoryItemController;
 use App\Http\Controllers\Inventory\InventoryPurchaseController;
 use App\Http\Controllers\Inventory\InventoryPurchasePaymentController;
+use App\Http\Controllers\Inventory\InventorySaleController;
 use App\Http\Controllers\Inventory\InventorySupplierController;
 use App\Http\Controllers\Lead\LeadClosingReasonController;
 use App\Http\Controllers\Lead\LeadSetup;
@@ -33,6 +37,7 @@ use App\Http\Controllers\Lead\ReferredByController;
 use App\Http\Controllers\PayeeController;
 use App\Http\Controllers\PayerController;
 use App\Http\Controllers\StaffManage\LeaveController;
+use App\Http\Controllers\Students\StudentController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -142,15 +147,50 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
 
         Route::get('purchase', [InventoryPurchaseController::class, 'index']);
         Route::post('purchase', [InventoryPurchaseController::class, 'store']);
+        Route::post('purchase/payment', [InventoryPurchasePaymentController::class, 'store']);
+        Route::get('purchase/{id}/payments', [InventoryPurchasePaymentController::class, 'index']);
+        Route::post('purchase/payment/{id}', [InventoryPurchasePaymentController::class, 'update']);
+        Route::delete('purchase/payment/{id}', [InventoryPurchasePaymentController::class, 'destroy']);
+
         Route::get('purchase/{id}', [InventoryPurchaseController::class, 'show']);
         Route::post('purchase/{id}', [InventoryPurchaseController::class, 'update']);
         Route::delete('purchase/{id}', [InventoryPurchaseController::class, 'destroy']);
 
-        Route::get('purchase/{id}/payments', [InventoryPurchasePaymentController::class, 'index']);
-        Route::post('purchase/payment', [InventoryPurchasePaymentController::class, 'store']);
-        Route::post('purchase/payment/{id}', [InventoryPurchasePaymentController::class, 'update']);
-        Route::delete('purchase/payment/{id}', [InventoryPurchasePaymentController::class, 'destroy']);
+        Route::post('/sale',[InventorySaleController::class, 'store']);
+        Route::get('/sale', [InventorySaleController::class, 'index']);
+        Route::get('/sale/{id}', [InventorySaleController::class, 'show']);
     });
+
+    Route::prefix('students')->group(function () {
+        Route::get('/', [StudentController::class, 'index']);
+        Route::post('/', [StudentController::class, 'store']);
+        Route::get('{id}', [StudentController::class, 'show']);
+        Route::post('{id}', [StudentController::class, 'update']);
+        Route::delete('{id}', [StudentController::class, 'destroy']);
+    });
+
+
+    Route::prefix('fees')->group(function () {
+        Route::get('/types', [FeesTypeController::class, 'index']);
+        Route::post('/types', [FeesTypeController::class, 'store']);
+        Route::delete('/types/{id}', [FeesTypeController::class, 'destroy']);
+
+        // Fees Structure
+        Route::post('/structures', [FeesStructureController::class, 'store']);
+
+        Route::post('/structure/installments',[FeesStructureInstallmentController::class, 'store']);
+
+        Route::get('/structures/{feesTypeId}', [FeesStructureController::class, 'byFeesType']);
+
+
+        Route::get('/structure/installments', [FeesStructureInstallmentController::class, 'index']);
+        Route::get('/structure/installments/{id}', [FeesStructureInstallmentController::class, 'show']);
+        Route::put('/structure/installments/{id}', [FeesStructureInstallmentController::class, 'update']);
+        Route::delete('/structure/installments/{id}', [FeesStructureInstallmentController::class, 'destroy']);
+
+    });
+
+
 
     Route::prefix('finance')->group(function(){
         Route::apiResource('category', FinanceCategoryController::class);

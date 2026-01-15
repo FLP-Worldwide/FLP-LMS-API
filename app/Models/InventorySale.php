@@ -6,22 +6,25 @@ use App\Traits\BelongsToInstitute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Course extends Model
+class InventorySale extends Model
 {
     use SoftDeletes, BelongsToInstitute;
     //
     protected $guarded  = ['id'];
     protected $hidden = ['created_at','updated_at','deleted_at'];
 
-    public function classRoom()
+    public function items()
     {
-        return $this->belongsTo(ClassRoom::class, 'standard_id');
+        return $this->hasMany(InventorySaleItem::class);
     }
 
-    public function batches()
+    public function payment()
     {
-        return $this->hasMany(Batch::class);
+        return $this->hasOne(InventorySalePayment::class);
     }
 
-
+    public function staff()
+    {
+        return $this->belongsTo(Teacher::class, 'user_id');
+    }
 }
