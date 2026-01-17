@@ -21,6 +21,8 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\Fees\FeesStructureController;
 use App\Http\Controllers\Fees\FeesStructureInstallmentController;
 use App\Http\Controllers\Fees\FeesTypeController;
+use App\Http\Controllers\Fees\FineManagementController;
+use App\Http\Controllers\Fees\RefundReasonController;
 use App\Http\Controllers\FinanceAccountController;
 use App\Http\Controllers\FinanceCategoryController;
 use App\Http\Controllers\IncomeController;
@@ -38,6 +40,7 @@ use App\Http\Controllers\PayeeController;
 use App\Http\Controllers\PayerController;
 use App\Http\Controllers\StaffManage\LeaveController;
 use App\Http\Controllers\Students\StudentController;
+use App\Http\Controllers\Students\StudentFilterController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -162,11 +165,13 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
     });
 
     Route::prefix('students')->group(function () {
+        Route::get('/filter', [StudentFilterController::class, 'index']);
         Route::get('/', [StudentController::class, 'index']);
         Route::post('/', [StudentController::class, 'store']);
         Route::get('{id}', [StudentController::class, 'show']);
         Route::post('{id}', [StudentController::class, 'update']);
         Route::delete('{id}', [StudentController::class, 'destroy']);
+
     });
 
 
@@ -187,6 +192,22 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::get('/structure/installments/{id}', [FeesStructureInstallmentController::class, 'show']);
         Route::put('/structure/installments/{id}', [FeesStructureInstallmentController::class, 'update']);
         Route::delete('/structure/installments/{id}', [FeesStructureInstallmentController::class, 'destroy']);
+
+        Route::prefix('/fine/manage')->group(function () {
+            Route::get('/', [FineManagementController::class, 'index']);
+            Route::post('/', [FineManagementController::class, 'store']);
+            Route::get('/{id}', [FineManagementController::class, 'show']);
+            Route::put('/{id}', [FineManagementController::class, 'update']);
+            Route::delete('/{id}', [FineManagementController::class, 'destroy']);
+        });
+
+        Route::prefix('/refund-reasons')->group(function () {
+            Route::get('/', [RefundReasonController::class, 'index']);
+            Route::post('/', [RefundReasonController::class, 'store']);
+            Route::put('/{id}', [RefundReasonController::class, 'update']);
+            Route::delete('/{id}', [RefundReasonController::class, 'destroy']); // optional
+        });
+
 
     });
 
