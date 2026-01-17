@@ -9,6 +9,7 @@ use App\Http\Controllers\Academics\TeacherAttendanceController;
 use App\Http\Controllers\Academics\TeacherController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Fees\FeePaymentApprovalController;
 use App\Http\Controllers\Assets\AssetAssignmentController;
 use App\Http\Controllers\Assets\AssetLocationController;
 use App\Http\Controllers\Assets\AssetCategoryController;
@@ -23,6 +24,8 @@ use App\Http\Controllers\Fees\FeesStructureInstallmentController;
 use App\Http\Controllers\Fees\FeesTypeController;
 use App\Http\Controllers\Fees\FineManagementController;
 use App\Http\Controllers\Fees\RefundReasonController;
+use App\Http\Controllers\Fees\StudentFeeController;
+use App\Http\Controllers\Fees\StudentFeePaymentController;
 use App\Http\Controllers\FinanceAccountController;
 use App\Http\Controllers\FinanceCategoryController;
 use App\Http\Controllers\IncomeController;
@@ -166,6 +169,7 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
 
     Route::prefix('students')->group(function () {
         Route::get('/filter', [StudentFilterController::class, 'index']);
+        Route::get('/financial-summary', [StudentFilterController::class, 'financialIndex']);
         Route::get('/', [StudentController::class, 'index']);
         Route::post('/', [StudentController::class, 'store']);
         Route::get('{id}', [StudentController::class, 'show']);
@@ -182,6 +186,8 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
 
         // Fees Structure
         Route::post('/structures', [FeesStructureController::class, 'store']);
+        Route::get('/structures/by-class/{classId}', [FeesStructureController::class, 'byClass']);
+        Route::get('/structures/by-fees-type/{feesTypeId}', [FeesStructureController::class, 'byFeesType']);
 
         Route::post('/structure/installments',[FeesStructureInstallmentController::class, 'store']);
 
@@ -208,6 +214,15 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
             Route::delete('/{id}', [RefundReasonController::class, 'destroy']); // optional
         });
 
+        Route::post(
+            '/assign-to-student',
+            [StudentFeeController::class, 'assign']
+        );
+        Route::post('/update/payments', [StudentFeePaymentController::class, 'store']);
+        Route::get('/payments', [StudentFeePaymentController::class, 'index']);
+        Route::post('/payment/{id}/approve', [FeePaymentApprovalController::class, 'approve']);
+        Route::get('/payments/{id}', [StudentFeePaymentController::class, 'studentList']);
+        Route::get('/payments-list/{id}', [StudentFeePaymentController::class, 'show']);
 
     });
 

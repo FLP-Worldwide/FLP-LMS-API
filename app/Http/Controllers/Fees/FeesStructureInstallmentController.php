@@ -58,9 +58,12 @@ class FeesStructureInstallmentController extends Controller
     {
         $request->validate([
             'fees_type_id' => 'required|exists:fees_types,id',
-            'class_id' => 'required|exists:class_rooms,id',
+            'class_id' => 'required|integer',
+            'fee_structure_name' => 'required|string|max:255',
+
             'batch_ids' => 'required|array|min:1',
             'batch_ids.*' => 'exists:batches,id',
+
             'total_amount' => 'required|numeric|min:0',
 
             'installments' => 'required|array|min:1',
@@ -73,16 +76,28 @@ class FeesStructureInstallmentController extends Controller
         DB::beginTransaction();
 
         try {
-            // Parent structure
-            $structure = FeesStructure::where('fees_type_id', $request->fees_type_id)
-                ->where('class_id', $request->class_id)
-                ->firstOrFail();
+            /**
+             * 1️⃣ Create or Update Parent Fees Structure
+             */
+            $structure = FeesStructure::updateOrCreate(
+                [
+                    'fees_type_id' => $request->fees_type_id,
+                    'class_id' => $request->class_id,
+                ],
+                [
+                    'name' => $request->fee_structure_name, // ✅ GROUP NAME
+                    'amount' => $request->total_amount,
+                ]
+            );
 
-
-            // Attach batches
+            /**
+             * 2️⃣ Attach batches
+             */
             $structure->batches()->sync($request->batch_ids);
 
-            // Replace installments
+            /**
+             * 3️⃣ Replace installments
+             */
             $structure->installments()->delete();
 
             foreach ($request->installments as $item) {
@@ -99,7 +114,7 @@ class FeesStructureInstallmentController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Fees structure created successfully',
+                'message' => 'Fees installment structure saved successfully',
                 'data' => $structure->load('installments', 'batches')
             ]);
 
@@ -108,7 +123,7 @@ class FeesStructureInstallmentController extends Controller
 
             return response()->json([
                 'status' => 'error',
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }

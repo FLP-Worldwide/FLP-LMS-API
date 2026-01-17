@@ -43,4 +43,27 @@ class FeesStructureController extends Controller
             'data' => $data
         ]);
     }
+
+    /**
+     * ✅ NEW API
+     * Get all fees structures under a class
+     * Also include installments if assigned
+     */
+    public function byClass(Request $request, $classId)
+    {
+        $structures = FeesStructure::with([
+                'installments.feesType',   // fees_structure_installments
+                'batches',          // fees_structure_batches
+                'feesType',         // fees_types
+            ])
+            ->where('class_id', $classId)
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'class_id' => $classId,
+            'count' => $structures->count(),
+            'data' => $structures
+        ]);
+    }
 }

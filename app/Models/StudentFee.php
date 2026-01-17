@@ -6,25 +6,28 @@ use App\Traits\BelongsToInstitute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class FeesStructureInstallment extends Model
+class StudentFee extends Model
 {
     use SoftDeletes, BelongsToInstitute;
     //
     protected $guarded  = ['id'];
     protected $hidden = ['created_at','updated_at','deleted_at'];
 
-    public function structure()
+    public function installments()
     {
-        return $this->belongsTo(FeesStructure::class);
+        return $this->hasMany(StudentFeeInstallment::class);
     }
 
-    public function feesType()
+    public function structure()
     {
-        return $this->belongsTo(
-            \App\Models\FeesType::class,
-            'fee_type_id'
-        );
+        return $this->belongsTo(FeesStructure::class, 'fees_structure_id');
     }
+
+    public function ledgers()
+    {
+        return $this->hasMany(StudentFeeLedger::class);
+    }
+
 
 
 }
