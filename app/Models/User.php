@@ -72,4 +72,10 @@ class User extends Authenticatable implements JWTSubject
         )->withTimestamps();
     }
 
+    public function staffDetail()
+    {
+        return $this->hasOne(StaffDetail::class);
+    }
+
+
 }

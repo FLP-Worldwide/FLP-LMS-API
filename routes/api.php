@@ -26,6 +26,7 @@ use App\Http\Controllers\Fees\FineManagementController;
 use App\Http\Controllers\Fees\RefundReasonController;
 use App\Http\Controllers\Fees\StudentFeeController;
 use App\Http\Controllers\Fees\StudentFeePaymentController;
+use App\Http\Controllers\Fees\StudentFinancialSummaryController;
 use App\Http\Controllers\FinanceAccountController;
 use App\Http\Controllers\FinanceCategoryController;
 use App\Http\Controllers\IncomeController;
@@ -44,6 +45,8 @@ use App\Http\Controllers\PayerController;
 use App\Http\Controllers\StaffManage\LeaveController;
 use App\Http\Controllers\Students\StudentController;
 use App\Http\Controllers\Students\StudentFilterController;
+use App\Http\Controllers\Transport\StudentTransportController;
+use App\Http\Controllers\Transport\VehicleController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -109,6 +112,42 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::put('{id}', [ClassController::class, 'update']);
     });
 
+    Route::prefix('transport')->group(function () {
+
+        Route::get('routes', [\App\Http\Controllers\Transport\BusRouteController::class, 'index']);
+        Route::post('routes', [\App\Http\Controllers\Transport\BusRouteController::class, 'store']);
+
+        Route::get('routes/{id}', [\App\Http\Controllers\Transport\BusRouteController::class, 'show']);
+        Route::put('routes/{id}', [\App\Http\Controllers\Transport\BusRouteController::class, 'update']);
+        Route::delete('routes/{id}', [\App\Http\Controllers\Transport\BusRouteController::class, 'destroy']);
+
+        Route::get('vehicles', [\App\Http\Controllers\Transport\VehicleController::class, 'index']);
+        Route::post('vehicles', [\App\Http\Controllers\Transport\VehicleController::class, 'store']);
+        Route::post('/vehicles/{id}/assign-route',[VehicleController::class, 'assignRoute']);
+        Route::post('/vehicles/{id}/assign-driver',[VehicleController::class, 'assignDriver']);
+
+        Route::get('vehicles/{id}', [\App\Http\Controllers\Transport\VehicleController::class, 'show']);
+        Route::put('vehicles/{id}', [\App\Http\Controllers\Transport\VehicleController::class, 'update']);
+        Route::delete('vehicles/{id}', [\App\Http\Controllers\Transport\VehicleController::class, 'destroy']);
+
+        Route::post('/assign-student',[StudentTransportController::class, 'assign']);
+        Route::post('/unassign-student',[StudentTransportController::class, 'unassign']);
+        Route::get('/assignments',[StudentTransportController::class, 'index']);
+        Route::get('/students',[StudentTransportController::class, 'students']);
+
+
+    });
+
+    Route::prefix('staff')->group(function () {
+        Route::get('drivers', [\App\Http\Controllers\Staff\DriverController::class, 'index']);
+        Route::post('drivers', [\App\Http\Controllers\Staff\DriverController::class, 'store']);
+        Route::get('drivers/{id}', [\App\Http\Controllers\Staff\DriverController::class, 'show']);
+        Route::put('drivers/{id}', [\App\Http\Controllers\Staff\DriverController::class, 'update']);
+        Route::delete('drivers/{id}', [\App\Http\Controllers\Staff\DriverController::class, 'destroy']);
+    });
+
+
+
     Route::prefix('subjects')
     ->group(function () {
         Route::get('/', [SubjectController::class, 'index']);
@@ -116,6 +155,18 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::get('{id}', [SubjectController::class, 'show']);
         Route::put('{id}', [SubjectController::class, 'update']);
     });
+
+    Route::prefix('topics')->group(function () {
+
+        Route::get('/', [\App\Http\Controllers\Academics\TopicController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\Academics\TopicController::class, 'store']);
+
+        Route::get('{id}', [\App\Http\Controllers\Academics\TopicController::class, 'show']);
+        Route::put('{id}', [\App\Http\Controllers\Academics\TopicController::class, 'update']);
+        Route::delete('{id}', [\App\Http\Controllers\Academics\TopicController::class, 'destroy']);
+
+    });
+
 
     Route::prefix('class-routines')
     ->group(function () {
@@ -172,9 +223,11 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::get('/financial-summary', [StudentFilterController::class, 'financialIndex']);
         Route::get('/', [StudentController::class, 'index']);
         Route::post('/', [StudentController::class, 'store']);
+
         Route::get('{id}', [StudentController::class, 'show']);
         Route::post('{id}', [StudentController::class, 'update']);
         Route::delete('{id}', [StudentController::class, 'destroy']);
+
 
     });
 
@@ -224,6 +277,7 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::get('/payments/{id}', [StudentFeePaymentController::class, 'studentList']);
         Route::get('/payments-list/{id}', [StudentFeePaymentController::class, 'show']);
 
+        Route::get('student/{id}/financial-summary', [StudentFinancialSummaryController::class, 'show']);
     });
 
 

@@ -61,63 +61,72 @@ class StudentFeePaymentController extends Controller
     }
 
     public function show($id)
-    {
-        /**
-         * 1️⃣ Load payment with student
-         */
-        $payment = StudentFeePayment::with([
-                'student:id,first_name,last_name,class,section,status',
-            ])
-            ->findOrFail($id);
+{
+    /**
+     * 1️⃣ Load payment + student
+     */
+    $payment = StudentFeePayment::with([
+            'student:id,first_name,last_name,class,section,status',
+        ])
+        ->findOrFail($id);
 
-        /**
-         * 2️⃣ Load student fees with installments
-         */
-        $studentFees = StudentFee::with([
-                'installments.feesType',
-            ])
-            ->where('student_id', $payment->student_id)
-            ->get();
+    /**
+     * 2️⃣ Load student fees + installments
+     */
+    $studentFees = StudentFee::with([
+            'installments.feesType',
+            'structure',
+        ])
+        ->where('student_id', $payment->student_id)
+        ->get();
 
-        /**
-         * 3️⃣ Build installment-wise balance
-         */
-        $installments = [];
+    $installments = [];
 
-        foreach ($studentFees as $fee) {
-            foreach ($fee->installments as $inst) {
+    /**
+     * 3️⃣ Build ONLY pending installments
+     */
+    foreach ($studentFees as $fee) {
+        foreach ($fee->installments as $inst) {
 
-                $paid = StudentFeeLedger::where('student_fee_installment_id', $inst->id)
-                    ->where('type', 'CREDIT')
-                    ->sum('amount');
+            $paid = StudentFeeLedger::where('student_fee_installment_id', $inst->id)
+                ->where('type', 'CREDIT')
+                ->sum('amount');
 
-                $installments[] = [
-                    'student_fee_id' => $fee->id,
-                    'student_fee_installment_id' => $inst->id,
+            $pending = max($inst->amount - $paid, 0);
 
-                    'installment_name' => $fee->structure->name ?? 'N/A',
-
-                    'fee_type' => $inst->feesType->name ?? 'N/A',
-                    'assign_type' => $inst->assign_type,
-                    'offset' => $inst->offset,
-
-                    'assigned_amount' => $inst->amount,
-                    'paid_amount' => $paid,
-                    'pending_amount' => max($inst->amount - $paid, 0),
-
-                    'is_extra' => $inst->is_extra,
-                ];
+            // 🔥 Hide fully paid installments
+            if ($pending <= 0) {
+                continue;
             }
-        }
 
-        return response()->json([
-            'status' => 'success',
-            'data' => [
-                'payment' => $payment,
-                'installments' => $installments,
-            ],
-        ]);
+            $installments[] = [
+                'student_fee_id' => $fee->id,
+                'student_fee_installment_id' => $inst->id,
+
+                'installment_name' => $fee->structure->name ?? 'N/A',
+                'fee_type' => $inst->feesType->name ?? 'N/A',
+
+                'assign_type' => $inst->assign_type,
+                'offset' => $inst->offset,
+
+                'assigned_amount' => $inst->amount,
+                'paid_amount' => $paid,
+                'pending_amount' => $pending,
+
+                'is_extra' => $inst->is_extra,
+            ];
+        }
     }
+
+    return response()->json([
+        'status' => 'success',
+        'data' => [
+            'payment' => $payment,
+            'installments' => $installments,
+        ],
+    ]);
+}
+
 
 
 

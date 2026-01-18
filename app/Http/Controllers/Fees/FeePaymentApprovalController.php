@@ -17,6 +17,7 @@ class FeePaymentApprovalController extends Controller
             'allocations' => 'required|array|min:1',
             'allocations.*.student_fee_installment_id' => 'required|exists:student_fee_installments,id',
             'allocations.*.amount' => 'required|numeric|min:1',
+
             'remarks' => 'nullable|string',
             'generate_receipt' => 'boolean',
             'send_email' => 'boolean',
@@ -25,7 +26,9 @@ class FeePaymentApprovalController extends Controller
         DB::beginTransaction();
 
         try {
-            /** @var StudentFeePayment $payment */
+            /**
+             * 1️⃣ Lock payment row
+             */
             $payment = StudentFeePayment::lockForUpdate()->findOrFail($paymentId);
 
             if ($payment->status !== 'PENDING') {
@@ -35,6 +38,9 @@ class FeePaymentApprovalController extends Controller
                 ], 422);
             }
 
+            /**
+             * 2️⃣ Validate allocation total
+             */
             $totalAllocated = collect($request->allocations)->sum('amount');
 
             if ((float) $totalAllocated !== (float) $payment->amount) {
@@ -44,35 +50,61 @@ class FeePaymentApprovalController extends Controller
                 ], 422);
             }
 
+            /**
+             * 3️⃣ Process each installment allocation
+             */
             foreach ($request->allocations as $allocation) {
 
-                /** @var StudentFeeInstallment $installment */
                 $installment = StudentFeeInstallment::with('studentFee')
                     ->lockForUpdate()
                     ->findOrFail($allocation['student_fee_installment_id']);
 
+                /**
+                 * 🔒 Prevent over-payment of installment
+                 */
+                $alreadyPaid = StudentFeeLedger::where('student_fee_installment_id', $installment->id)
+                    ->where('type', 'CREDIT')
+                    ->sum('amount');
+
+                $remaining = $installment->amount - $alreadyPaid;
+
+                if ($allocation['amount'] > $remaining) {
+                    throw new \Exception(
+                        "Payment exceeds pending balance for installment ID {$installment->id}"
+                    );
+                }
+
+                /**
+                 * 4️⃣ Create ledger CREDIT (INSTALLMENT LINKED 🔥)
+                 */
                 StudentFeeLedger::create([
-                    'student_id'     => $payment->student_id,
-                    'student_fee_id' => $installment->student_fee_id,
-                    'payment_id'     => $payment->id,
-                    'type'           => 'CREDIT',
-                    'amount'         => $allocation['amount'],
-                    'description'    => $request->remarks ?? 'Fee payment approved',
+                    'student_id'                 => $payment->student_id,
+                    'student_fee_id'             => $installment->student_fee_id,
+                    'student_fee_installment_id' => $installment->id,
+                    'payment_id'                 => $payment->id,
+
+                    'type'        => 'CREDIT',
+                    'amount'      => $allocation['amount'],
+                    'description' => $request->remarks ?? 'Fee payment approved',
                 ]);
             }
 
+            /**
+             * 5️⃣ Approve payment
+             */
             $payment->update([
-                'status' => 'APPROVED',
-                'remarks' => $request->remarks,
-                'approved_at' => now(),
+                'status'       => 'APPROVED',
+                'remarks'      => $request->remarks,
+                'approved_at'  => now(),
             ]);
 
-            // OPTIONAL: Receipt generation
+            /**
+             * 6️⃣ Optional async actions
+             */
             if ($request->boolean('generate_receipt')) {
                 // dispatch(new GenerateFeeReceiptJob($payment->id));
             }
 
-            // OPTIONAL: Email
             if ($request->boolean('send_email')) {
                 // dispatch(new SendFeeReceiptMailJob($payment->id));
             }
