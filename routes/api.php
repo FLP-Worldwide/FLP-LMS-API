@@ -18,6 +18,8 @@ use App\Http\Controllers\Assets\PurchaseController;
 use App\Http\Controllers\Assets\SupplierController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\Enquiry\EnquiryController;
+use App\Http\Controllers\Exam\ExamController;
+use App\Http\Controllers\Exam\ExamGradeController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\Fees\FeesStructureController;
 use App\Http\Controllers\Fees\FeesStructureInstallmentController;
@@ -42,6 +44,11 @@ use App\Http\Controllers\Lead\AreaController;
 use App\Http\Controllers\Lead\ReferredByController;
 use App\Http\Controllers\PayeeController;
 use App\Http\Controllers\PayerController;
+use App\Http\Controllers\Settings\AssignmentController;
+use App\Http\Controllers\Settings\LiveClassSettingController;
+use App\Http\Controllers\Settings\StudyMaterialController;
+use App\Http\Controllers\Settings\StudyResourceController;
+use App\Http\Controllers\Settings\ZoomClassController;
 use App\Http\Controllers\StaffManage\LeaveController;
 use App\Http\Controllers\Students\StudentController;
 use App\Http\Controllers\Students\StudentFilterController;
@@ -137,6 +144,60 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
 
 
     });
+
+    Route::prefix('exams')->group(function () {
+        Route::get('/', [ExamController::class, 'index']);
+        Route::post('/', [ExamController::class, 'store']);
+        Route::get('{id}', [ExamController::class, 'show']);
+        Route::put('{id}', [ExamController::class, 'update']);
+        Route::delete('{id}', [ExamController::class, 'destroy']);
+    });
+
+    Route::prefix('live-class')->group(function () {
+        Route::get('settings', [LiveClassSettingController::class, 'show']);
+        Route::post('settings', [LiveClassSettingController::class, 'store']);
+
+       Route::prefix('zoom-classes')->group(function () {
+            Route::get('/', [ZoomClassController::class, 'index']);
+            Route::post('/', [ZoomClassController::class, 'store']);
+            Route::get('{id}', [ZoomClassController::class, 'show']);
+            Route::put('{id}', [ZoomClassController::class, 'update']);
+            Route::delete('{id}', [ZoomClassController::class, 'destroy']);
+        });
+    });
+
+    Route::prefix('admin/study-materials')->group(function () {
+        Route::get('/', [StudyMaterialController::class, 'index']);
+        Route::post('/', [StudyMaterialController::class, 'store']);
+        Route::get('{id}', [StudyMaterialController::class, 'show']);
+        Route::post('{id}', [StudyMaterialController::class, 'update']); // multipart-safe
+        Route::delete('{id}', [StudyMaterialController::class, 'destroy']);
+    });
+    Route::prefix('admin/resources')->group(function () {
+        Route::get('/', [StudyResourceController::class, 'index']);
+
+        Route::post('folder', [StudyResourceController::class, 'createFolder']);
+        Route::post('upload', [StudyResourceController::class, 'uploadFile']);
+        Route::post('link', [StudyResourceController::class, 'addLink']);
+
+        Route::delete('{id}', [StudyResourceController::class, 'destroy']);
+    });
+
+    Route::prefix('assignments')->group(function () {
+        Route::post('/', [AssignmentController::class, 'store']);
+        Route::get('grouped', [AssignmentController::class, 'grouped']);
+        Route::get('{id}', [AssignmentController::class, 'show']);
+        Route::put('update/{id}', [AssignmentController::class, 'update']);
+
+    });
+
+    Route::prefix('exam-grades')->group(function () {
+        Route::get('/', [ExamGradeController::class, 'index']);
+        Route::post('/', [ExamGradeController::class, 'store']);
+        Route::put('{id}', [ExamGradeController::class, 'update']);
+        Route::delete('{id}', [ExamGradeController::class, 'destroy']);
+    });
+
 
     Route::prefix('staff')->group(function () {
         Route::get('drivers', [\App\Http\Controllers\Staff\DriverController::class, 'index']);
