@@ -2,48 +2,25 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Session\DatabaseSessionHandler;
 
 class User extends Authenticatable implements JWTSubject
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
-    use SoftDeletes;
+    use HasFactory, Notifiable, SoftDeletes;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $guarded = ['id'];
 
-    public function institutes()
-    {
-        return $this->belongsToMany(Institute::class, 'institute_users')
-            ->withPivot('role')
-            ->withTimestamps();
-    }
-
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -51,6 +28,66 @@ class User extends Authenticatable implements JWTSubject
             'password' => 'hashed',
         ];
     }
+
+    /* ---------- Institute Relations ---------- */
+
+    public function institutes()
+    {
+        return $this->belongsToMany(Institute::class, 'institute_users')
+            ->withPivot(['role', 'role_id'])
+            ->withTimestamps();
+    }
+
+    public function instituteUsers()
+    {
+        return $this->hasMany(InstituteUser::class);
+    }
+
+    // ✅ SINGLE institute record (this is what APIs use)
+    public function instituteUser()
+    {
+        return $this->hasOne(InstituteUser::class)
+            ->where('institute_id', auth()->user()->institute_id);
+    }
+
+
+
+
+    /* ---------- Staff ---------- */
+
+    public function staffDetail()
+    {
+        return $this->hasOne(StaffDetail::class);
+    }
+
+    /* ---------- Sessions ---------- */
+
+    public function sessions()
+    {
+        return $this->hasMany(Session::class, 'user_id');
+    }
+
+    public function lastLoginAt()
+    {
+        return optional(
+            $this->sessions()->orderByDesc('last_activity')->first()
+        )->last_activity;
+    }
+
+    public function permissions()
+    {
+        return $this->belongsToMany(
+            Permission::class,
+            'user_permissions'
+        )->withTimestamps();
+    }
+
+    public function getTempPasswordAttribute($value)
+    {
+        return $value ? Crypt::decryptString($value) : null;
+    }
+
+    /* ---------- JWT ---------- */
 
     public function getJWTIdentifier()
     {
@@ -63,19 +100,5 @@ class User extends Authenticatable implements JWTSubject
             'role' => $this->role,
         ];
     }
-
-    public function permissions()
-    {
-        return $this->belongsToMany(
-            Permission::class,
-            'user_permissions'
-        )->withTimestamps();
-    }
-
-    public function staffDetail()
-    {
-        return $this->hasOne(StaffDetail::class);
-    }
-
 
 }

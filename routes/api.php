@@ -44,8 +44,10 @@ use App\Http\Controllers\Lead\AreaController;
 use App\Http\Controllers\Lead\ReferredByController;
 use App\Http\Controllers\PayeeController;
 use App\Http\Controllers\PayerController;
+use App\Http\Controllers\Payroll\UserSalaryTemplateController;
 use App\Http\Controllers\Settings\AssignmentController;
 use App\Http\Controllers\Settings\LiveClassSettingController;
+use App\Http\Controllers\Settings\SalaryTemplateController;
 use App\Http\Controllers\Settings\StudyMaterialController;
 use App\Http\Controllers\Settings\StudyResourceController;
 use App\Http\Controllers\Settings\ZoomClassController;
@@ -191,6 +193,16 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
 
     });
 
+    Route::prefix('payroll/salary-templates')->group(function () {
+        Route::get('/', [SalaryTemplateController::class, 'index']);
+        Route::post('/', [SalaryTemplateController::class, 'store']);
+        Route::get('{id}', [SalaryTemplateController::class, 'show']);
+        Route::put('{id}', [SalaryTemplateController::class, 'update']);
+        Route::delete('{id}', [SalaryTemplateController::class, 'destroy']);
+    });
+
+
+
     Route::prefix('exam-grades')->group(function () {
         Route::get('/', [ExamGradeController::class, 'index']);
         Route::post('/', [ExamGradeController::class, 'store']);
@@ -205,6 +217,26 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::get('drivers/{id}', [\App\Http\Controllers\Staff\DriverController::class, 'show']);
         Route::put('drivers/{id}', [\App\Http\Controllers\Staff\DriverController::class, 'update']);
         Route::delete('drivers/{id}', [\App\Http\Controllers\Staff\DriverController::class, 'destroy']);
+
+        Route::get('all', [\App\Http\Controllers\Staff\StaffController::class,'index']);
+        Route::get('attendance/{user_id}', [\App\Http\Controllers\Staff\StaffController::class,'showAttendance']);
+        Route::put('attendance/{user_id}', [\App\Http\Controllers\Staff\StaffController::class,'updateAttendance']);
+        Route::post('create', [\App\Http\Controllers\Staff\StaffOnboardingController::class, 'store']);
+    });
+
+    Route::prefix('payroll')->group(function () {
+        Route::post('assign-salary-template', [UserSalaryTemplateController::class, 'store']);
+        Route::get('assign-salary-template/{user_id}', [UserSalaryTemplateController::class, 'show']);
+
+        Route::get('salary-overview/{user}',[UserSalaryTemplateController::class, 'salaryOverview']);
+    });
+
+
+    Route::prefix('settings/roles')->group(function () {
+        Route::get('/', [App\Http\Controllers\Settings\RoleController::class, 'index']);
+        Route::post('/', [App\Http\Controllers\Settings\RoleController::class, 'store']);
+        Route::put('{id}', [App\Http\Controllers\Settings\RoleController::class, 'update']);
+        Route::delete('{id}', [App\Http\Controllers\Settings\RoleController::class, 'destroy']);
     });
 
 

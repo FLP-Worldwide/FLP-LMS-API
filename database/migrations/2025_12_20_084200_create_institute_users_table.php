@@ -20,6 +20,7 @@ return new class extends Migration
 
             $table->string('role')->default('admin');
             // admin | teacher | accountant | staff
+            $table->foreignId('role_id')->nullable()->constrained('roles');
 
             $table->timestamps();
             $table->softDeletes();

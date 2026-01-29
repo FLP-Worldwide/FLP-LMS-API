@@ -27,6 +27,13 @@ class Teacher extends Model
             return $this->hasOne(TeacherDetail::class);
         }
 
+        // Teacher model
+        public function details()
+        {
+            return $this->hasOne(TeacherDetail::class);
+        }
+
+
         public function subjects()
         {
             return $this->belongsToMany(
@@ -35,10 +42,11 @@ class Teacher extends Model
             );
         }
 
-        public function attendances()
+       public function attendances()
         {
-            return $this->hasMany(TeacherAttendance::class);
+            return $this->hasMany(UserAttendance::class, 'teacher_id');
         }
+
 
         public function classRooms()
         {

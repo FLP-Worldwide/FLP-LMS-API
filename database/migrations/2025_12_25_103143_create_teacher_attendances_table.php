@@ -19,7 +19,7 @@ return new class extends Migration
 
             $table->date('attendance_date');
 
-            $table->enum('status', ['P', 'A', 'LP', 'HP', 'L']);
+            $table->enum('status', ['P', 'A', 'LP', 'HP', 'L', 'H', 'S']);
 
             // 🔒 One attendance per teacher per day
             $table->unique(['teacher_id', 'attendance_date']);
