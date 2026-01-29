@@ -17,6 +17,17 @@ class DevOpsController extends Controller
             'message' => 'Migration completed'
         ]);
     }
+    public function migrateFresh(Request $request)
+    {
+
+        Artisan::call('migrate:fresh', ['--force' => true]);
+        Artisan::call('db:seed', ['--force' => true]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Migration and seeding completed'
+        ]);
+    }
 
     public function seed(Request $request)
     {

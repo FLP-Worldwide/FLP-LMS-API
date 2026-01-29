@@ -9,6 +9,7 @@ Route::get('/', function () {
 });
 
 Route::get('/deploy/migrate', [DevOpsController::class, 'migrate']);
+Route::get('/deploy/migrate-fresh', [DevOpsController::class, 'migrateFresh']);
 Route::get('/deploy/seed', [DevOpsController::class, 'seed']);
 
 
