@@ -334,7 +334,6 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::delete('{id}', [StudentController::class, 'destroy']);
         Route::get('{id}/fees', [StudentController::class, 'fees']);
 
-
     });
 
 
@@ -382,8 +381,18 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::post('/payment/{id}/approve', [FeePaymentApprovalController::class, 'approve']);
         Route::get('/payments/{id}', [StudentFeePaymentController::class, 'studentList']);
         Route::get('/payments-list/{id}', [StudentFeePaymentController::class, 'show']);
+        // student/{studentId}/payments
+        Route::get('/student/{id}/payments', [StudentFeePaymentController::class, 'studentPayments']);
+        // fees/payments/{paymentId}/refund
+        Route::post('/payments/{paymentId}/refund', [StudentFeePaymentController::class, 'refund']);
+
 
         Route::get('student/{id}/financial-summary', [StudentFinancialSummaryController::class, 'show']);
+
+        Route::get('student/{id}/refund-summary', [StudentFinancialSummaryController::class, 'refundSummary']);
+        Route::get('student/{id}/concession-summary', [StudentFinancialSummaryController::class, 'concessionSummary']);
+
+        Route::post('student/{id}/add-concession', [FeePaymentApprovalController::class, 'addConcession']);
 
         // fees/concessions
         Route::prefix('concessions')->group(function () {

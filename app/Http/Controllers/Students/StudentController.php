@@ -11,9 +11,24 @@ use Illuminate\Support\Facades\DB;
 class StudentController extends Controller
 {
 
-     public function index(Request $request)
+    public function index(Request $request)
     {
+        $search = trim($request->get('q'));
+
         $students = Student::with('details')
+            ->when($search, function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+
+                    $q->where('first_name', 'LIKE', "%{$search}%")
+                    ->orWhere('last_name', 'LIKE', "%{$search}%")
+                    ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"])
+                    ->orWhere('admission_no', 'LIKE', "%{$search}%")
+                    ->orWhere('roll_no', 'LIKE', "%{$search}%")
+                    ->orWhereHas('details', function ($dq) use ($search) {
+                        $dq->where('phone', 'LIKE', "%{$search}%");
+                    });
+                });
+            })
             ->latest()
             ->get()
             ->map(function ($s) {
@@ -21,15 +36,18 @@ class StudentController extends Controller
                     'id' => $s->id,
                     'admission_no' => $s->admission_no,
                     'roll_no' => $s->roll_no,
-                    'gender' => $s->details?->gender,
-                    'dob' => $s->details?->dob,
+
                     'first_name' => $s->first_name,
                     'last_name' => $s->last_name,
+
+                    'gender' => $s->details?->gender,
+                    'dob' => $s->details?->dob,
                     'father_name' => $s->details?->father_name,
+                    'phone' => $s->details?->phone,
+
                     'classes' => $s->classRoom,
                     'section' => $s->section,
                     'status' => $s->status,
-                    'phone' => $s->details?->phone,
                     'admission_date' => $s->admission_date,
                 ];
             });
@@ -39,6 +57,7 @@ class StudentController extends Controller
             'data' => $students,
         ]);
     }
+
 
 
    public function store(Request $request)
@@ -297,5 +316,8 @@ public function show($id)
             ]
         ]);
     }
+
+
+
 
 }

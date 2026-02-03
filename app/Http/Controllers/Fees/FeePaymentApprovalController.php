@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Fees;
 
 use App\Http\Controllers\Controller;
+use App\Models\StudentApproveConcession;
 use App\Models\StudentFeePayment;
 use App\Models\StudentFeeInstallment;
 use App\Models\StudentFeeLedger;
@@ -126,4 +127,87 @@ class FeePaymentApprovalController extends Controller
             ], 500);
         }
     }
+
+
+    // addConcession
+    public function addConcession(Request $request)
+    {
+        $request->validate([
+            'concessions' => 'required|array|min:1',
+            'concessions.*.student_fee_installment_id' => 'required|exists:student_fee_installments,id',
+            'concessions.*.amount' => 'required|numeric|min:1',
+            'remarks' => 'nullable|string',
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+
+            foreach ($request->concessions as $item) {
+
+                $installment = StudentFeeInstallment::with('studentFee')
+                    ->lockForUpdate()
+                    ->findOrFail($item['student_fee_installment_id']);
+
+                /**
+                 * 1️⃣ Calculate already adjusted amount
+                 */
+                $paidAmount = StudentFeeLedger::where('student_fee_installment_id', $installment->id)
+                    ->where('type', 'CREDIT')
+                    ->sum('amount');
+
+                $remaining = $installment->amount - $paidAmount;
+
+                if ($item['amount'] > $remaining) {
+                    throw new \Exception(
+                        "Concession exceeds pending balance for installment ID {$installment->id}"
+                    );
+                }
+
+                /**
+                 * 2️⃣ Save concession record
+                 */
+                StudentApproveConcession::create([
+                    'student_id'                 => $installment->studentFee->student_id,
+                    'student_fee_id'             => $installment->student_fee_id,
+                    'student_fee_installment_id' => $installment->id,
+                    'amount'                     => $item['amount'],
+                    'remarks'                    => $request->remarks,
+                ]);
+
+                /**
+                 * 3️⃣ Ledger entry (CREDIT as CONCESSION)
+                 */
+                StudentFeeLedger::create([
+                    'student_id'                 => $installment->studentFee->student_id,
+                    'student_fee_id'             => $installment->student_fee_id,
+                    'student_fee_installment_id' => $installment->id,
+                    'payment_id'                 => null,
+
+                    'type'        => 'CREDIT',
+                    'amount'      => $item['amount'],
+                    'description' => 'Fee concession applied',
+                    'is_extra'    => 1,
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Concession applied successfully',
+            ]);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to apply concession',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+
 }

@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Fees;
 
 use App\Http\Controllers\Controller;
 use App\Models\Student;
+use App\Models\StudentApproveConcession;
 use App\Models\StudentFee;
 use App\Models\StudentFeeLedger;
 use App\Models\StudentFeePayment;
+use App\Models\StudentFeeRefund;
 use Illuminate\Http\Request;
 
 class StudentFinancialSummaryController extends Controller
@@ -16,24 +18,21 @@ class StudentFinancialSummaryController extends Controller
         /**
          * 1️⃣ Student + personal details
          */
-        $student = Student::with([
-                'details',
-            ])
-            ->findOrFail($studentId);
+        $student = Student::with(['details'])->findOrFail($studentId);
 
         /**
-         * 2️⃣ Course & Batch (derived via student_fees → fees_structures → batches)
+         * 2️⃣ Student fees + structure + installments
          */
         $studentFees = StudentFee::with([
-                'structure.feesType',
-                'structure.batches.course.classRoom',
-                'installments.feesType',
-            ])
+            'structure.feesType',
+            'structure.batches.course.classRoom',
+            'installments.feesType',
+        ])
             ->where('student_id', $student->id)
             ->get();
 
         /**
-         * 3️⃣ Payments (pending + approved)
+         * 3️⃣ Payments list
          */
         $payments = StudentFeePayment::where('student_id', $student->id)
             ->orderByDesc('created_at')
@@ -50,25 +49,46 @@ class StudentFinancialSummaryController extends Controller
             });
 
         /**
-         * 4️⃣ Installment-wise breakdown
+         * 4️⃣ Installment-wise breakdown + calculations
          */
         $installments = [];
-        $totalAssigned = 0;
-        $totalPaid = 0;
+
+        $totalFeesAssigned = 0;
+        $overdueFees = 0;
 
         foreach ($studentFees as $fee) {
             foreach ($fee->installments as $inst) {
 
                 $assigned = $inst->amount;
+                $totalFeesAssigned += $assigned;
 
+                // Total CREDIT (payment + concession)
                 $paid = StudentFeeLedger::where('student_fee_installment_id', $inst->id)
                     ->where('type', 'CREDIT')
                     ->sum('amount');
 
+                // Concession only (no payment_id)
+                $concession = StudentFeeLedger::where('student_fee_installment_id', $inst->id)
+                    ->where('type', 'CREDIT')
+                    ->whereNull('payment_id')
+                    ->sum('amount');
+
+                // Actual paid by student
+                $actualPaid = $paid - $concession;
+
                 $pending = max($assigned - $paid, 0);
 
-                $totalAssigned += $assigned;
-                $totalPaid += $paid;
+                /**
+                 * 🔥 Overdue logic (matches UI)
+                 */
+                if ($pending > 0) {
+                    if (
+                        in_array($inst->assign_type, ['BAD', 'DAYS_AFTER_BAD']) ||
+                        ($inst->assign_type === 'TRIGGER' && $inst->offset > 0)
+                    ) {
+                        $overdueFees += $pending;
+                    }
+                }
 
                 $installments[] = [
                     'student_fee_id' => $fee->id,
@@ -81,28 +101,40 @@ class StudentFinancialSummaryController extends Controller
                     'offset' => $inst->offset,
 
                     'assigned_amount' => $assigned,
-                    'paid_amount' => $paid,
-                    'pending_amount' => $pending,
 
+                    // existing key (DO NOT CHANGE)
+                    'paid_amount' => $paid,
+
+                    // ✅ new keys
+                    'concession_amount' => $concession,
+                    'paid_amount_excluding_concession' => $actualPaid,
+
+                    'pending_amount' => $pending,
                     'status' => $pending <= 0 ? 'PAID' : 'PENDING',
+
                     'is_extra' => (bool) $inst->is_extra,
                 ];
             }
         }
 
         /**
-         * 5️⃣ Ledger totals (final authority)
+         * 5️⃣ Totals (ledger-based adjustments)
          */
-        $ledgerDebit = StudentFeeLedger::where('student_id', $student->id)
-            ->where('type', 'DEBIT')
+        $totalConcession = StudentFeeLedger::where('student_id', $student->id)
+            ->where('type', 'CREDIT')
+            ->whereNull('payment_id')
             ->sum('amount');
 
-        $ledgerCredit = StudentFeeLedger::where('student_id', $student->id)
+        $totalPaidExcludingConcession = StudentFeeLedger::where('student_id', $student->id)
             ->where('type', 'CREDIT')
+            ->whereNotNull('payment_id')
             ->sum('amount');
+
+        $totalPayable = max($totalFeesAssigned - $totalConcession, 0);
+        $totalDues = max($totalPayable - $totalPaidExcludingConcession, 0);
 
         /**
-         * 6️⃣ Final response
+         * 6️⃣ Final response (frontend safe)
          */
         return response()->json([
             'status' => 'success',
@@ -133,15 +165,133 @@ class StudentFinancialSummaryController extends Controller
                 })->unique('batch_id')->values(),
 
                 'installments' => $installments,
-
                 'payments' => $payments,
 
                 'summary' => [
-                    'total_assigned' => $ledgerDebit,
-                    'total_paid' => $ledgerCredit,
-                    'total_pending' => max($ledgerDebit - $ledgerCredit, 0),
+                    // UI: Fees (F)
+                    'total_assigned' => $totalFeesAssigned,
+
+                    // UI: Concession (C)
+                    'total_concession' => $totalConcession,
+
+                    // UI: Amount Paid
+                    'total_paid_excluding_concession' => $totalPaidExcludingConcession,
+
+                    // existing key (keep)
+                    'total_paid' => $totalPaidExcludingConcession + $totalConcession,
+
+                    // UI: Total Dues
+                    'total_pending' => $totalDues,
+
+                    // UI: Overdue Fees
+                    'overdue_fees' => $overdueFees,
+
+                    // UI: Tax (future)
+                    'tax' => 0,
                 ],
             ],
         ]);
     }
+
+
+    // refundSummary to get all refudnded amount for a student
+   public function refundSummary($studentId)
+    {
+        $refunds = StudentFeeRefund::with('reasonMaster')
+            ->where('student_id', $studentId)
+            ->orderByDesc('refund_date')
+            ->get();
+
+        $refundList = $refunds->map(function ($r) {
+
+            return [
+                'refund_id' => $r->id,
+
+                'payment_id' => $r->payment_id,
+                'student_fee_id' => $r->student_fee_id,
+                'student_fee_installment_id' => $r->student_fee_installment_id,
+
+                'refund_amount' => (float) $r->refund_amount,
+                'refund_date' => $r->refund_date,
+
+                'payment_mode' => $r->payment_mode,
+                'reference_no' => $r->reference_no,
+
+                // ✅ HERE IS THE FIX
+                'reason_id' => $r->reason,
+                'reason' => $r->reasonMaster?->reason, // 👈 text from table
+
+                'download_receipt' => (bool) $r->download_receipt,
+
+                'notify' => [
+                    'email' => [
+                        'parents' => (bool) $r->notify_email_parents,
+                        'students' => (bool) $r->notify_email_students,
+                    ],
+                    'sms' => [
+                        'parents' => (bool) $r->notify_sms_parents,
+                        'students' => (bool) $r->notify_sms_students,
+                    ],
+                ],
+
+                'created_at' => $r->created_at,
+            ];
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'total_refunded_amount' => (float) $refunds->sum('refund_amount'),
+                'refunds' => $refundList,
+            ],
+        ]);
+    }
+
+
+    public function concessionSummary($studentId)
+    {
+        // 1️⃣ Fetch all concessions with reason text
+        $concessions = StudentApproveConcession::with([
+
+                'installment',
+            ])
+            ->where('student_id', $studentId)
+            ->orderByDesc('created_at')
+            ->get();
+
+        // 2️⃣ Prepare list
+        $concessionList = $concessions->map(function ($c) {
+            return [
+                'concession_id' => $c->id,
+
+                'student_fee_id' => $c->student_fee_id,
+                'student_fee_installment_id' => $c->student_fee_installment_id,
+
+                'installment_name' => $c->installment?->feesType?->name,
+                'installment_amount' => $c->installment?->amount,
+
+                'concession_amount' => (float) $c->amount,
+
+                'remarks' => $c->remarks,
+
+                'created_at' => $c->created_at,
+            ];
+        });
+
+        // 3️⃣ Total concession amount
+        $totalConcession = $concessions->sum('amount');
+
+        // 4️⃣ Response
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'total_concession_amount' => (float) $totalConcession,
+                'concessions' => $concessionList,
+            ],
+        ]);
+    }
+
+
+
+
 }
