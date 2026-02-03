@@ -130,15 +130,20 @@ class StudentController extends Controller
     /* =====================================================
        👁️ SHOW – Student Details
     ===================================================== */
-    public function show($id)
-    {
-        $student = Student::with('details')->findOrFail($id);
+public function show($id)
+{
+    $student = Student::with([
+        'details',
+        'classRoom.courses',
+        'classRoom.courses.batches',
+    ])->findOrFail($id);
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $student,
-        ]);
-    }
+    return response()->json([
+        'status' => 'success',
+        'data' => $student,
+    ]);
+}
+
 
     /* =====================================================
        ✏️ UPDATE – Update Student
@@ -214,4 +219,83 @@ class StudentController extends Controller
             'message' => 'Student deleted successfully',
         ]);
     }
+
+
+    public function fees($id)
+    {
+        $student = Student::with([
+            'fees.structure.feesType',
+            'fees.structure.batches',
+            'fees.installments',
+            'fees.ledgers',
+        ])->findOrFail($id);
+
+        /* ================= SUMMARY ================= */
+        $totalFees = $student->fees->sum('total_amount');
+
+        $totalPaid = $student->feeLedgers
+            ->where('type', 'CREDIT')
+            ->sum('amount');
+
+        $totalFine = $student->feeLedgers
+            ->where('type', 'DEBIT')
+            ->sum('amount');
+
+        $totalDue = max(($totalFees + $totalFine) - $totalPaid, 0);
+
+        /* ================= PAYMENT HISTORY ================= */
+        $payments = $student->feeLedgers->map(function ($l) {
+            return [
+                'paid_on' => optional($l->created_at)->format('Y-m-d'),
+                'installment_no' => $l->student_fee_installment_id,
+                'fee_type' => optional($l->feesType)->name ?? '-',
+                'batch' => optional($l->studentFee?->structure?->batches->first())->name,
+                'amount_paid' => $l->amount,
+                'payment_mode' => 'Online', // if column exists replace
+                'remark' => $l->description,
+            ];
+        });
+
+        /* ================= STRUCTURE VIEW ================= */
+        $feeStructures = $student->fees->map(function ($fee) {
+            return [
+                'fees_structure_id' => $fee->fees_structure_id,
+                'fee_type' => $fee->structure->feesType->name ?? null,
+                'batches' => $fee->structure->batches->pluck('name'),
+                'total_amount' => $fee->total_amount,
+                'installments' => $fee->installments->map(function ($i) {
+                    return [
+                        'installment_id' => $i->id,
+                        'assign_type' => $i->assign_type,
+                        'amount' => $i->amount,
+                        'offset' => $i->offset,
+                        'is_extra' => $i->is_extra,
+                    ];
+                }),
+            ];
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'summary' => [
+                    'fees' => $totalFees,
+                    'concession' => 0,
+                    'tax' => 0,
+                    'total_payable' => $totalFees,
+                    'amount_paid' => $totalPaid,
+                    'bad_debt' => 0,
+                    'overdue_fees' => $totalDue,
+                    'upcoming_dues' => 0,
+                    'total_dues' => $totalDue,
+                    'total_fine' => $totalFine,
+                    'paid_fine' => 0,
+                    'balance_fine' => $totalFine,
+                ],
+                'payment_history' => $payments,
+                'fee_structures' => $feeStructures,
+            ]
+        ]);
+    }
+
 }

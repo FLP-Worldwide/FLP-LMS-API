@@ -3,12 +3,16 @@
 namespace App\Http\Controllers\Enquiry;
 
 use App\Http\Controllers\Controller;
+use App\Models\CustomFieldValue;
 use App\Models\Enquiry;
-use App\Models\EnquiryDetail;
-use App\Models\EnquiryFollowUp;
+use App\Models\Student;
+use App\Models\StudentDetail;
+use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Str;
 
 class EnquiryController extends Controller
 {
@@ -53,14 +57,14 @@ class EnquiryController extends Controller
     }
 
     /**
-     * Store enquiry (basic + details + optional follow-up)
+     * Store enquiry (basic + details + follow-ups + custom fields)
      */
     public function store(Request $request)
     {
         DB::beginTransaction();
 
         try {
-            // ================= BASIC VALIDATION =================
+            // ================= VALIDATION =================
             $validated = $request->validate([
                 'student_name' => 'required|string|max:150',
                 'phone'        => 'required|string|max:20',
@@ -71,11 +75,19 @@ class EnquiryController extends Controller
                 'status'           => 'nullable|string',
                 'lead_temperature' => 'nullable|string',
                 'enquiry_date'     => 'nullable|date',
+
+                'details' => 'nullable|array',
+
+                'follow_ups' => 'nullable|array',
+
+                'custom_fields' => 'nullable|array',
+                'custom_fields.*.custom_field_id' => 'required|integer|exists:custom_fields,id',
+                'custom_fields.*.value' => 'nullable|string',
             ]);
 
             // ================= CREATE ENQUIRY =================
             $enquiry = Enquiry::create([
-                'enquiry_code' => 'ENQ-' . strtoupper(Str::random(6)),
+                'enquiry_code' => 'ENQ-' . strtoupper(rand(1000, 9999)),
                 'student_name' => $validated['student_name'],
                 'phone'        => $validated['phone'],
                 'lead_source_type_id' => $request->lead_source_type_id,
@@ -85,46 +97,45 @@ class EnquiryController extends Controller
                 'enquiry_date'        => $request->enquiry_date ?? now()->toDateString(),
             ]);
 
-            $detailData = $request->except([
-                'student_name',
-                'phone',
-                'lead_source_type_id',
-                'referred_by_id',
-                'status',
-                'lead_temperature',
-                'enquiry_date',
-                'follow_up_type',
-                'followup_date',
-                'followup_time',
-                'comment',
-            ]);
+            // ================= DETAILS =================
+            $detailData = $request->input('details', []);
 
-            // ✅ Normalize boolean
-            $sameAddress = filter_var(
-                $request->same_address,
-                FILTER_VALIDATE_BOOLEAN,
-                FILTER_NULL_ON_FAILURE
-            );
+            if (!empty($detailData)) {
+                $sameAddress = filter_var(
+                    $detailData['same_address'] ?? false,
+                    FILTER_VALIDATE_BOOLEAN
+                );
 
-            // Force safe value
-            $detailData['same_address'] = $sameAddress ? 1 : 0;
+                $detailData['same_address'] = $sameAddress ? 1 : 0;
 
-            // Copy address if same
-            if ($sameAddress) {
-                $detailData['residential_address'] = $request->current_address;
+                if ($sameAddress && isset($detailData['current_address'])) {
+                    $detailData['residential_address'] = $detailData['current_address'];
+                }
+
+                $enquiry->details()->create($detailData);
             }
 
-            $enquiry->details()->create($detailData);
+            // ================= FOLLOW UPS =================
+            if ($request->filled('follow_ups')) {
+                foreach ($request->follow_ups as $followUp) {
+                    $enquiry->followUps()->create([
+                        'follow_up_type' => $followUp['follow_up_type'] ?? null,
+                        'followup_date'  => $followUp['followup_date'] ?? null,
+                        'followup_time'  => $followUp['followup_time'] ?? null,
+                        'comment'        => $followUp['comment'] ?? null,
+                    ]);
+                }
+            }
 
-
-            // ================= OPTIONAL FOLLOW-UP =================
-            if ($request->follow_up_type || $request->followup_date) {
-                $enquiry->followUps()->create([
-                    'follow_up_type' => $request->follow_up_type,
-                    'followup_date'  => $request->followup_date,
-                    'followup_time'  => $request->followup_time,
-                    'comment'        => $request->comment,
-                ]);
+            // ================= CUSTOM FIELDS =================
+            if ($request->filled('custom_fields')) {
+                foreach ($request->custom_fields as $field) {
+                    CustomFieldValue::create([
+                        'enquiry_id' => $enquiry->id,
+                        'custom_field_id' => $field['custom_field_id'],
+                        'value' => $field['value'],
+                    ]);
+                }
             }
 
             DB::commit();
@@ -132,7 +143,11 @@ class EnquiryController extends Controller
             return response()->json([
                 'status'  => 'success',
                 'message' => 'Enquiry created successfully.',
-                'data'    => $enquiry->load('details', 'followUps'),
+                'data'    => $enquiry->load([
+                    'details',
+                    'followUps',
+                    'customFieldValues.field',
+                ]),
             ], 201);
 
         } catch (\Throwable $e) {
@@ -147,21 +162,42 @@ class EnquiryController extends Controller
     }
 
     /**
-     * Show enquiry (basic + details + follow-ups)
+     * Show enquiry
      */
-    public function show($id)
-    {
-        $enquiry = Enquiry::with(['details', 'followUps'])
-            ->findOrFail($id);
+public function show($id)
+{
+    $enquiry = Enquiry::with([
+        'details',
+        'followUps' => function ($q) {
+            $q->orderBy('created_at', 'asc');
+        },
+        'customFieldValues.field',
+    ])->findOrFail($id);
 
-        return response()->json([
-            'status' => 'success',
-            'data'   => $enquiry,
-        ]);
-    }
+    // ✅ history banaya (followUps se hi)
+    $history = $enquiry->followUps->map(function ($followUp) {
+        return [
+            'id' => $followUp->id,
+            'follow_up_type' => $followUp->follow_up_type,
+            'followup_date' => $followUp->followup_date,
+            'followup_time' => $followUp->followup_time,
+            'comment' => $followUp->comment,
+            'created_at' => $followUp->created_at,
+        ];
+    });
+
+    // ✅ data ke andar hi merge
+    $enquiry->history = $history;
+
+    return response()->json([
+        'status' => 'success',
+        'data'   => $enquiry,
+    ]);
+}
+
 
     /**
-     * Update enquiry (basic + details)
+     * Update enquiry (FULL payload support)
      */
     public function update(Request $request, $id)
     {
@@ -170,7 +206,7 @@ class EnquiryController extends Controller
         try {
             $enquiry = Enquiry::findOrFail($id);
 
-            // ================= UPDATE BASIC =================
+            // ================= VALIDATION =================
             $validated = $request->validate([
                 'student_name' => 'required|string|max:150',
                 'phone'        => 'required|string|max:20',
@@ -181,8 +217,16 @@ class EnquiryController extends Controller
                 'status'           => 'nullable|string',
                 'lead_temperature' => 'nullable|string',
                 'enquiry_date'     => 'nullable|date',
+
+                'details' => 'nullable|array',
+                'follow_ups' => 'nullable|array',
+
+                'custom_fields' => 'nullable|array',
+                'custom_fields.*.custom_field_id' => 'required|integer|exists:custom_fields,id',
+                'custom_fields.*.value' => 'nullable|string',
             ]);
 
+            // ================= BASIC =================
             $enquiry->update([
                 'student_name' => $validated['student_name'],
                 'phone'        => $validated['phone'],
@@ -193,29 +237,73 @@ class EnquiryController extends Controller
                 'enquiry_date'        => $request->enquiry_date,
             ]);
 
-            // ================= UPDATE DETAILS =================
-            $detailData = $request->except([
-                'student_name',
-                'phone',
-                'lead_source_type_id',
-                'referred_by_id',
-                'status',
-                'lead_temperature',
-                'enquiry_date',
-                'follow_up_type',
-                'followup_date',
-                'followup_time',
-                'comment',
-            ]);
+            // ================= DETAILS =================
+            $detailData = $request->input('details', []);
 
-            if ($request->same_address) {
-                $detailData['residential_address'] = $request->current_address;
+            if (!empty($detailData)) {
+                $sameAddress = filter_var(
+                    $detailData['same_address'] ?? false,
+                    FILTER_VALIDATE_BOOLEAN
+                );
+
+                $detailData['same_address'] = $sameAddress ? 1 : 0;
+
+                if ($sameAddress && isset($detailData['current_address'])) {
+                    $detailData['residential_address'] = $detailData['current_address'];
+                }
+
+                if ($enquiry->details) {
+                    $enquiry->details->update($detailData);
+                } else {
+                    $enquiry->details()->create($detailData);
+                }
             }
 
-            if ($enquiry->details) {
-                $enquiry->details->update($detailData);
-            } else {
-                $enquiry->details()->create($detailData);
+            // ================= FOLLOW UPS =================
+            // ================= FOLLOW UPS (APPEND ONLY – HISTORY SAFE) =================
+            if ($request->filled('follow_ups')) {
+                foreach ($request->follow_ups as $followUp) {
+
+                    // Skip empty comments (optional safety)
+                    if (
+                        empty($followUp['comment']) &&
+                        empty($followUp['follow_up_type']) &&
+                        empty($followUp['followup_date'])
+                    ) {
+                        continue;
+                    }
+
+                    $enquiry->followUps()->create([
+                        'follow_up_type' => $followUp['follow_up_type'] ?? null,
+                        'followup_date'  => $followUp['followup_date'] ?? null,
+                        'followup_time'  => $followUp['followup_time'] ?? null,
+                        'comment'        => $followUp['comment'] ?? null,
+                    ]);
+                }
+            }
+
+
+            // ================= CUSTOM FIELDS =================
+            if ($request->filled('custom_fields')) {
+                $incomingIds = collect($request->custom_fields)
+                    ->pluck('custom_field_id')
+                    ->toArray();
+
+                CustomFieldValue::where('enquiry_id', $enquiry->id)
+                    ->whereNotIn('custom_field_id', $incomingIds)
+                    ->delete();
+
+                foreach ($request->custom_fields as $field) {
+                    CustomFieldValue::updateOrCreate(
+                        [
+                            'enquiry_id' => $enquiry->id,
+                            'custom_field_id' => $field['custom_field_id'],
+                        ],
+                        [
+                            'value' => $field['value'],
+                        ]
+                    );
+                }
             }
 
             DB::commit();
@@ -223,7 +311,11 @@ class EnquiryController extends Controller
             return response()->json([
                 'status'  => 'success',
                 'message' => 'Enquiry updated successfully.',
-                'data'    => $enquiry->load('details', 'followUps'),
+                'data'    => $enquiry->load([
+                    'details',
+                    'followUps',
+                    'customFieldValues.field',
+                ]),
             ]);
 
         } catch (\Throwable $e) {
@@ -233,6 +325,105 @@ class EnquiryController extends Controller
                 'status'  => 'error',
                 'message' => 'Failed to update enquiry.',
                 'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+
+
+    public function convertToStudent($id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $enquiry = Enquiry::with([
+                'details',
+                'customFieldValues',
+            ])->findOrFail($id);
+
+            // ❌ Already converted check
+            if ($enquiry->status === 'converted') {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Enquiry already converted to student.'
+                ], 400);
+            }
+
+            // ================= CREATE USER =================
+            $password = Str::random(8);
+
+            $user = User::create([
+                'uid' => Str::uuid(),
+                'name' => $enquiry->student_name,
+                'email' => $enquiry->details->email ?? 'student_' . time() . '@demo.com',
+                'password' => Hash::make($password),
+                'temp_password' => Crypt::encryptString($password),
+            ]);
+
+            // ================= CREATE STUDENT =================
+            $nameParts = explode(' ', $enquiry->student_name, 2);
+
+            $student = Student::create([
+                'stuid' => Str::uuid(),
+                'institute_id' => $enquiry->institute_id,
+
+                'first_name' => $nameParts[0],
+                'last_name' => $nameParts[1] ?? null,
+
+                'status' => 'active',
+                'admission_date' => now()->toDateString(),
+            ]);
+
+            // ================= STUDENT DETAILS =================
+            $detail = $enquiry->details;
+
+            StudentDetail::create([
+                'student_id' => $student->id,
+
+                'dob' => $detail->dob ?? null,
+                'gender' => $detail->gender ?? null,
+                'blood_group' => $detail->blood_group ?? null,
+
+                'email' => $detail->email ?? null,
+                'phone' => $detail->phone ?? $enquiry->phone,
+
+                'father_name' => $detail->parent_name ?? null,
+                'mother_name' => null,
+                'parent_phone' => $detail->parent_contact ?? null,
+
+                'address' => $detail->residential_address ?? null,
+                'city' => $detail->city ?? null,
+                'state' => $detail->state ?? null,
+                'country' => 'India',
+            ]);
+
+            // ================= UPDATE ENQUIRY =================
+            $enquiry->update([
+                'status' => 'converted',
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Enquiry converted to student successfully.',
+                'data' => [
+                    'student_id' => $student->id,
+                    'user_id' => $user->id,
+                    'login' => [
+                        'email' => $user->email,
+                        'password' => $password, // show once to admin
+                    ]
+                ]
+            ]);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to convert enquiry to student.',
+                'error' => $e->getMessage(),
             ], 500);
         }
     }

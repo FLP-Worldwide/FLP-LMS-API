@@ -54,7 +54,7 @@ class SupplierController extends Controller
 
         try {
             $supplier = Supplier::create([
-                'institute_id'   => auth()->user()->institute_id,
+                // 'institute_id'   => auth()->user()->institute_id,
                 'company_name'   => $validated['company_name'],
                 'email'          => $validated['email'] ?? null,
                 'mobile'         => $validated['mobile'],

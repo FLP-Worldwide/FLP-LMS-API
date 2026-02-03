@@ -6,27 +6,21 @@ use App\Traits\BelongsToInstitute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Enquiry extends Model
+class CustomFieldValue extends Model
 {
     use SoftDeletes, BelongsToInstitute;
     //
     protected $guarded  = ['id'];
     protected $hidden = ['created_at','updated_at','deleted_at'];
 
-    public function details()
+    public function field()
     {
-        return $this->hasOne(EnquiryDetail::class);
+        return $this->belongsTo(CustomField::class, 'custom_field_id');
     }
 
-    public function followUps()
+    public function enquiry()
     {
-        return $this->hasMany(EnquiryFollowUp::class);
+        return $this->belongsTo(Enquiry::class);
     }
-
-    public function customFieldValues()
-    {
-        return $this->hasMany(CustomFieldValue::class);
-    }
-
 
 }

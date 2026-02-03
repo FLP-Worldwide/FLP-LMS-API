@@ -21,6 +21,7 @@ use App\Http\Controllers\Enquiry\EnquiryController;
 use App\Http\Controllers\Exam\ExamController;
 use App\Http\Controllers\Exam\ExamGradeController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\Fees\FeeConcessionController;
 use App\Http\Controllers\Fees\FeesStructureController;
 use App\Http\Controllers\Fees\FeesStructureInstallmentController;
 use App\Http\Controllers\Fees\FeesTypeController;
@@ -41,6 +42,7 @@ use App\Http\Controllers\Inventory\InventorySupplierController;
 use App\Http\Controllers\Lead\LeadClosingReasonController;
 use App\Http\Controllers\Lead\LeadSetup;
 use App\Http\Controllers\Lead\AreaController;
+use App\Http\Controllers\Lead\CustomFieldController;
 use App\Http\Controllers\Lead\ReferredByController;
 use App\Http\Controllers\PayeeController;
 use App\Http\Controllers\PayerController;
@@ -105,12 +107,22 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::delete('{id}', [ReferredByController::class, 'destroy']);
     });
 
+    Route::prefix('custom-fields')->group(function () {
+        Route::get('/', [CustomFieldController::class, 'index']);
+        Route::post('/', [CustomFieldController::class, 'store']);
+        Route::get('{customField}', [CustomFieldController::class, 'show']);
+        Route::put('{customField}', [CustomFieldController::class, 'update']);
+        Route::delete('{customField}', [CustomFieldController::class, 'destroy']);
+    });
+
+
     Route::prefix('enquiries')
     ->group(function () {
         Route::get('/', [EnquiryController::class, 'index']);
         Route::post('/', [EnquiryController::class, 'store']);
         Route::get('{id}', [EnquiryController::class, 'show']);
         Route::put('{id}', [EnquiryController::class, 'update']);
+        Route::post('{id}/convert-to-student', [EnquiryController::class, 'convertToStudent']);
     });
 
     Route::prefix('classes')
@@ -320,6 +332,7 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::get('{id}', [StudentController::class, 'show']);
         Route::post('{id}', [StudentController::class, 'update']);
         Route::delete('{id}', [StudentController::class, 'destroy']);
+        Route::get('{id}/fees', [StudentController::class, 'fees']);
 
 
     });
@@ -371,6 +384,15 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::get('/payments-list/{id}', [StudentFeePaymentController::class, 'show']);
 
         Route::get('student/{id}/financial-summary', [StudentFinancialSummaryController::class, 'show']);
+
+        // fees/concessions
+        Route::prefix('concessions')->group(function () {
+            Route::apiResource('/', FeeConcessionController::class);
+            Route::get('students', [FeeConcessionController::class, 'students']);
+            Route::post('assign', [FeeConcessionController::class, 'assignToStudent']);
+            // concessions/by-batch
+            Route::get('by-batch', [FeeConcessionController::class, 'byBatch']);
+        });
     });
 
 

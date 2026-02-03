@@ -20,7 +20,7 @@ class ClassRoom extends Model
 
     public function courses()
     {
-        return $this->hasMany(Course::class, 'standard_id');
+        return $this->hasMany(Course::class, 'standard_id', 'id');
     }
 
     public function routines()

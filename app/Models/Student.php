@@ -26,16 +26,64 @@ class Student extends Model
         });
     }
 
+    public function course()
+    {
+        return $this->hasOneThrough(
+            Course::class,
+            ClassRoom::class,
+            'id',            // class_rooms.id
+            'standard_id',   // courses.standard_id
+            'class',         // students.class
+            'id'             // class_rooms.id
+        );
+    }
+
+    public function batch()
+    {
+        return $this->hasOneThrough(
+            Batch::class,
+            Course::class,
+            'standard_id',   // courses.standard_id
+            'course_id',     // batches.course_id
+            'class',         // students.class
+            'id'             // courses.id
+        );
+    }
+
     public function details()
     {
         return $this->hasOne(StudentDetail::class);
     }
 
 
-
     public function classRoom()
     {
-        return $this->belongsTo(ClassRoom::class, 'class');
+        return $this->belongsTo(ClassRoom::class, 'class', 'id');
     }
+
+
+    public function fees()
+    {
+        return $this->hasMany(StudentFee::class);
+    }
+
+    public function feeLedgers()
+    {
+        return $this->hasMany(StudentFeeLedger::class);
+    }
+
+    public function concessions()
+    {
+        return $this->belongsToMany(
+            FeeConcession::class,
+            'student_fee_concessions'
+        );
+    }
+    public function feeConcessions()
+    {
+        return $this->hasMany(StudentFeeConcession::class);
+    }
+
+
 
 }
