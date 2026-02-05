@@ -3,10 +3,15 @@
 namespace App\Http\Controllers\Students;
 
 use App\Http\Controllers\Controller;
+use App\Models\InstituteUser;
 use App\Models\Student;
 use App\Models\StudentDetail;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Crypt;
 
 class StudentController extends Controller
 {
@@ -85,6 +90,23 @@ class StudentController extends Controller
         ]);
 
         DB::beginTransaction();
+        $password = Str::random(10);
+        $user = User::create([
+            'uid' => 'ST'.Str::random(5), // 'ST' for 'Student'
+            'name' => $validated['first_name'].' '.$validated['last_name'],
+            'email' => $validated['details']['email'] ?? null,
+            'temp_password' => Crypt::encryptString($password),
+            'password' => Hash::make($password),
+            'role' => 'student',
+            
+        ]);
+
+         InstituteUser::create([
+
+            'user_id' => $user->id,
+            'role' => 'student',
+
+        ]);
 
         try {
             // 1️⃣ Create student without roll_no first
@@ -94,6 +116,7 @@ class StudentController extends Controller
                 'class' => $validated['class'],
                 'section' => $validated['section'] ?? null,
                 'status' => $validated['status'],
+                'user_id' => $user->id,
                 'admission_date' => $validated['admission_date'] ?? null,
             ]);
 

@@ -38,4 +38,9 @@ class ClassRoutine extends Model
         return $this->belongsTo(Room::class);
     }
 
+    public function teacher()
+    {
+        return $this->belongsTo(Teacher::class, 'teacher_id');
+    }
+
 }

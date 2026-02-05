@@ -47,15 +47,15 @@ class ExamController extends Controller
     }
 
 
-    public function index(Request $request)
+   public function index(Request $request)
     {
         $query = Exam::with([
             'course:id,name,standard_id',
+            'course.classRoom:id,name',
+            'course.classRoom.subjects:id,class_id,name',
             'batch:id,name,course_id',
-            'subjects.subject:id,name,short_code',
-            'subjects.topic:id,name',
+            'subjects.subject:id,name',
         ]);
-
 
         if ($request->filled('course_id')) {
             $query->where('course_id', $request->course_id);
@@ -79,7 +79,39 @@ class ExamController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data' => $exams,
+            'data' => $exams->map(function ($exam) {
+
+                return [
+                    'id' => $exam->id,
+                    'exam_date' => $exam->exam_date,
+                    'start_time' => $exam->start_time,
+                    'end_time' => $exam->end_time,
+                    'room' => $exam->subjects->first()?->room_no,
+                    'topic' => $exam->topic ? $exam->topic->name : null,
+
+                    'course' => [
+                        'id' => $exam->course->id,
+                        'name' => $exam->course->name,
+                    ],
+
+                     'batch' => $exam->batch ? [
+                        'id' => $exam->batch->id,
+                        'name' => $exam->batch->name,
+                        'course_id' => $exam->batch->course_id,
+                    ] : null,
+
+                    'class' => [
+                        'id' => $exam->course->classRoom->id,
+                        'name' => $exam->course->classRoom->name,
+                    ],
+
+                    'subjects' => $exam->subjects->map(fn ($s) => [
+                        'id' => $s->subject->id,
+                        'name' => $s->subject->name,
+                        'marks' => $s->marks,
+                    ]),
+                ];
+            }),
         ]);
     }
 

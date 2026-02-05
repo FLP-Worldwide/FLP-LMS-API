@@ -28,5 +28,9 @@ class ClassRoom extends Model
         return $this->hasMany(ClassRoutine::class, 'class_id');
     }
 
+    public function subjects()
+    {
+        return $this->hasMany(Subject::class, 'class_id');
+    }
 
 }

@@ -15,10 +15,10 @@ return new class extends Migration
             $table->id();
             $table->foreignId('institute_id')->constrained()->cascadeOnDelete();
             $table->foreignId('exam_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('subject_id')->constrained();
+            $table->foreignId('class_id')->constrained();
 
             $table->integer('marks');
-            $table->string('topic')->nullable();
+            $table->string('subject_id')->nullable();
             $table->text('description')->nullable();
             $table->string('room_no')->nullable();
 

@@ -186,7 +186,7 @@ class StaffController extends Controller
     }
 
     public function showAttendance(Request $request, $userId){
-$from = $to = Carbon::today();
+            $from = $to = Carbon::today();
 
         if ($request->date) {
             $from = $to = Carbon::parse($request->date);

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Academics\BatchController;
+use App\Http\Controllers\Academics\BatchDetailsController;
 use App\Http\Controllers\Academics\ClassController;
 use App\Http\Controllers\Academics\ClassRoutineController;
 use App\Http\Controllers\Academics\RoomController;
@@ -436,6 +437,11 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
 
     Route::apiResource('courses', CourseController::class);
     Route::apiResource('batches', BatchController::class);
+
+     Route::prefix('batche')->group(function(){
+    // {batchId}/details?
+        Route::get('{batchId}/details', [BatchDetailsController::class, 'batchDetails']);
+     });
 
 
 

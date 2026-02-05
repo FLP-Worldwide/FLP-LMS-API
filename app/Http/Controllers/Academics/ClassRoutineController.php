@@ -80,7 +80,7 @@ class ClassRoutineController extends Controller
             // teacher can be empty
             'teacher'    => 'nullable|string|max:100',
 
-            'room_id'    => 'required|exists:rooms,id',
+            'room_id'    => 'nullable', //'required|exists:rooms,id',
 
             'day'        => 'required|array|min:1',
             'day.*'      => 'required|string',

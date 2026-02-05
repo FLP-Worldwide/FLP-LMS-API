@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Academics;
 
 use App\Http\Controllers\Controller;
+use App\Models\Batch;
 use App\Models\ClassRoom;
+use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -13,11 +15,52 @@ class ClassController extends Controller
     /**
      * List class_rooms
      */
-    public function index()
+
+    public function index(Request $request)
     {
+        $batchId  = $request->batch_id;
+        $courseId = $request->course_id;
+
+        $query = ClassRoom::query();
+
+        /**
+         * ------------------------------
+         * 1️⃣ FILTER BY BATCH
+         * ------------------------------
+         * batch → course → class
+         */
+        if ($batchId) {
+
+            $batch = Batch::with('course')->find($batchId);
+
+            if ($batch && $batch->course) {
+                $query->where('id', $batch->course->standard_id);
+            }
+        }
+
+        /**
+         * ------------------------------
+         * 2️⃣ FILTER BY COURSE
+         * ------------------------------
+         * course → class
+         */
+        elseif ($courseId) {
+
+            $course = Course::find($courseId);
+
+            if ($course) {
+                $query->where('id', $course->standard_id);
+            }
+        }
+
+        /**
+         * ------------------------------
+         * RESULT
+         * ------------------------------
+         */
         return response()->json([
             'status' => 'success',
-            'data' => ClassRoom::orderBy('created_on')->get(),
+            'data' => $query->orderBy('created_on')->get(),
         ]);
     }
 

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Academics;
 
 use App\Http\Controllers\Controller;
+use App\Models\InstituteUser;
 use App\Models\Teacher;
 use App\Models\TeacherDetail;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -13,13 +15,16 @@ class TeacherController extends Controller
 
     public function index(Request $request)
     {
+        /* ===================== BASE QUERY ===================== */
+
         $query = Teacher::with([
             'detail',
             'classRooms:id,name',
             'subjects:id,name'
         ]);
 
-        // 🔍 Filters
+        /* ===================== FILTERS ===================== */
+
         if ($request->department) {
             $query->where('department', $request->department);
         }
@@ -42,12 +47,43 @@ class TeacherController extends Controller
 
         $teachers = $query->latest()->get();
 
+        /* ===================== USER ↔ TEACHER MAPPING ===================== */
+
+        // 1️⃣ Collect all teacher emails
+        $emails = $teachers
+            ->pluck('detail.email')
+            ->filter()
+            ->unique()
+            ->values();
+
+        // 2️⃣ Fetch users by email
+        $users = User::whereIn('email', $emails)
+            ->get()
+            ->keyBy('email');
+
+        // 3️⃣ Fetch institute_users for teachers
+        $instituteUsers = InstituteUser::where('role', 'teacher')
+            ->whereIn('user_id', $users->pluck('id'))
+            ->get()
+            ->keyBy('user_id');
+
+        /* ===================== RESPONSE ===================== */
+
         return response()->json([
             'status' => 'success',
-            'data' => $teachers->map(function ($teacher) {
+            'data' => $teachers->map(function ($teacher) use ($users, $instituteUsers) {
+
+                $email = $teacher->detail?->email;
+                $user  = $email ? $users->get($email) : null;
+
+                $userId = $user
+                    ? optional($instituteUsers->get($user->id))->user_id
+                    : null;
+
                 return [
-                    'id' => $teacher->id,
-                    'tuid' => $teacher->tuid,
+                    'id'      => $teacher->id,
+                    'tuid'    => $teacher->tuid,
+                    'user_id' => $userId, // ✅ HERE IT IS
 
                     'name' => trim($teacher->first_name . ' ' . $teacher->last_name),
                     'department' => $teacher->department,
@@ -56,8 +92,8 @@ class TeacherController extends Controller
                     'joining_date' => $teacher->joining_date,
 
                     'contact' => [
-                        'phone' => $teacher->detail->phone ?? null,
-                        'email' => $teacher->detail->email ?? null,
+                        'phone' => $teacher->detail?->phone,
+                        'email' => $email,
                     ],
 
                     'classes' => $teacher->classRooms->map(fn ($c) => [
@@ -73,7 +109,6 @@ class TeacherController extends Controller
             }),
         ]);
     }
-
     public function show($id)
     {
         $teacher = Teacher::with([

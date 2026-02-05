@@ -22,7 +22,7 @@ return new class extends Migration
             $table->foreignId('class_id')->constrained('class_rooms')->restrictOnDelete();
             $table->string('section')->nullable();
             $table->foreignId('subject_id')->constrained('subjects')->restrictOnDelete();
-            // $table->foreignId('teacher_id')->constrained('teachers')->restrictOnDelete();
+            $table->foreignId('teacher_id')->constrained('teachers')->restrictOnDelete();
 
             // Time
             $table->time('start_time');
