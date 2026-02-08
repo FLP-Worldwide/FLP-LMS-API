@@ -98,7 +98,7 @@ class StudentController extends Controller
             'temp_password' => Crypt::encryptString($password),
             'password' => Hash::make($password),
             'role' => 'student',
-            
+
         ]);
 
          InstituteUser::create([

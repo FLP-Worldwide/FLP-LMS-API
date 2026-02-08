@@ -166,6 +166,7 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::get('{id}', [ExamController::class, 'show']);
         Route::put('{id}', [ExamController::class, 'update']);
         Route::delete('{id}', [ExamController::class, 'destroy']);
+        Route::post('/mark-attendance', [ExamController::class, 'markAttendance']);
     });
 
     Route::prefix('live-class')->group(function () {
@@ -331,7 +332,7 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::post('/', [StudentController::class, 'store']);
 
         Route::get('{id}', [StudentController::class, 'show']);
-        Route::post('{id}', [StudentController::class, 'update']);
+        Route::put('{id}', [StudentController::class, 'update']);
         Route::delete('{id}', [StudentController::class, 'destroy']);
         Route::get('{id}/fees', [StudentController::class, 'fees']);
 
