@@ -12,4 +12,9 @@ class LeadSourceType extends Model
     //
     protected $guarded  = ['id'];
     protected $hidden = ['created_at','updated_at','deleted_at'];
+
+    public function enquiries()
+    {
+        return $this->hasMany(Enquiry::class, 'lead_source_type_id');
+    }
 }

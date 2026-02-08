@@ -11,11 +11,14 @@ class ReferredByController extends Controller
 {
     public function index()
     {
+        $refs = ReferredBy::withCount('enquiries')->latest()->get();
+
         return response()->json([
             'status' => 'success',
-            'data' => ReferredBy::orderBy('name')->get(),
+            'data'   => $refs,
         ]);
     }
+
 
     public function store(Request $request)
     {
@@ -88,7 +91,15 @@ class ReferredByController extends Controller
 
     public function destroy($id)
     {
-        $ref = ReferredBy::findOrFail($id);
+        $ref = ReferredBy::withCount('enquiries')->findOrFail($id);
+
+        if ($ref->enquiries_count > 0) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Cannot delete referral member. Leads are already assigned to this referral.',
+            ], 422);
+        }
+
         $ref->delete();
 
         return response()->json([
@@ -96,4 +107,5 @@ class ReferredByController extends Controller
             'message' => 'Referral member deleted successfully.',
         ]);
     }
+
 }

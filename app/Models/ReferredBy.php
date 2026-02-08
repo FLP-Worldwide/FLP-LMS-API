@@ -12,4 +12,10 @@ class ReferredBy extends Model
     //
     protected $guarded  = ['id'];
     protected $hidden = ['created_at','updated_at','deleted_at'];
+
+    public function enquiries()
+    {
+        return $this->hasMany(Enquiry::class, 'referred_by_id');
+    }
+
 }

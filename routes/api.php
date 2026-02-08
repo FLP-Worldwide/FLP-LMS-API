@@ -438,7 +438,7 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
     Route::apiResource('courses', CourseController::class);
     Route::apiResource('batches', BatchController::class);
 
-     Route::prefix('batche')->group(function(){
+     Route::prefix('batch')->group(function(){
     // {batchId}/details?
         Route::get('{batchId}/details', [BatchDetailsController::class, 'batchDetails']);
      });

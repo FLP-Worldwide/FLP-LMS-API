@@ -28,5 +28,13 @@ class Enquiry extends Model
         return $this->hasMany(CustomFieldValue::class);
     }
 
+    public function leadSource()
+    {
+        return $this->belongsTo(LeadSourceType::class, 'lead_source_type_id');
+    }
+    public function referredBy()
+    {
+        return $this->belongsTo(ReferredBy::class, 'referred_by_id');
+    }
 
 }

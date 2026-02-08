@@ -90,20 +90,28 @@ class BatchDetailsController extends Controller
             ->where('is_active', true)
             ->get();
 
-        $start = Carbon::parse($batch->start_date);
-        $end   = Carbon::parse($batch->end_date);
+     $weekStart = now()->startOfWeek(); // Monday
+    $weekEnd   = now()->endOfWeek();   // Sunday
+
+    // Ensure week range stays inside batch duration
+    $start = Carbon::parse($batch->start_date)->greaterThan($weekStart)
+        ? Carbon::parse($batch->start_date)
+        : $weekStart;
+
+    $end = Carbon::parse($batch->end_date)->lessThan($weekEnd)
+        ? Carbon::parse($batch->end_date)
+        : $weekEnd;
+
 
         $schedule = [];
 
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
 
-            if ($date->month !== $month || $date->year !== $year) {
-                continue;
-            }
-
             foreach ($routines as $routine) {
 
-                $days = $routine->days->pluck('day')->map(fn ($d) => strtolower($d));
+                $days = $routine->days
+                    ->pluck('day')
+                    ->map(fn ($d) => strtolower($d));
 
                 if (!$days->contains(strtolower($date->format('l')))) {
                     continue;
@@ -120,18 +128,19 @@ class BatchDetailsController extends Controller
                 $bs = $batchSubjects[$routine->subject_id];
 
                 $schedule[] = [
-                    'date' => $date->toDateString(),
-                    'day' => $date->format('l'),
-                    'batch' => $batch->name,
-                    'subject' => $routine->subject?->name,
-                    'topic' => null,
-                    'teacher' => $bs->teacher?->name,
-                    'start_time' => Carbon::parse($routine->start_time)->format('H:i'),
-                    'end_time' => Carbon::parse($routine->end_time)->format('H:i'),
-                    'status' => $status,
+                    'date'        => $date->toDateString(),
+                    'day'         => $date->format('l'),
+                    'batch'       => $batch->name,
+                    'subject'     => $routine->subject?->name,
+                    'topic'       => null,
+                    'teacher'     => $bs->teacher?->name,
+                    'start_time'  => Carbon::parse($routine->start_time)->format('H:i'),
+                    'end_time'    => Carbon::parse($routine->end_time)->format('H:i'),
+                    'status'      => $status,
                 ];
             }
         }
+
 
         /* ===================== RESPONSE ===================== */
         return response()->json([

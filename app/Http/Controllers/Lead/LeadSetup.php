@@ -11,12 +11,14 @@ class LeadSetup extends Controller
 {
     public function index()
     {
-        $sources = LeadSourceType::latest()->get();
+    $sources = LeadSourceType::withCount('enquiries')
+        ->latest()
+        ->get();
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $sources,
-        ]);
+    return response()->json([
+        'status' => 'success',
+        'data' => $sources,
+    ]);
     }
 
     /**
@@ -108,12 +110,21 @@ class LeadSetup extends Controller
      */
     public function destroy($id)
     {
-        $source = LeadSourceType::findOrFail($id);
+        $source = LeadSourceType::withCount('enquiries')->findOrFail($id);
+
+        if ($source->enquiries_count > 0) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Cannot delete source. Leads are already assigned to this source.',
+            ], 422);
+        }
+
         $source->delete();
 
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'message' => 'Lead source deleted successfully.',
         ]);
     }
+
 }

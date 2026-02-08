@@ -22,6 +22,12 @@ class EnquiryController extends Controller
     public function index(Request $request)
     {
         $query = Enquiry::query()
+            ->with([
+                'details:id,enquiry_id,email,gender,state,city,category,parent_name',
+                'followUps' => function ($q) {
+                    $q->latest()->limit(1);
+                }
+            ])
             ->select([
                 'id',
                 'enquiry_code',
@@ -35,26 +41,73 @@ class EnquiryController extends Controller
                 'created_at',
             ]);
 
-        if ($request->status) {
+        /* ================= BASIC FILTERS ================= */
+
+        if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        if ($request->lead_temperature) {
-            $query->where('lead_temperature', $request->lead_temperature);
+        if ($request->filled('priority')) {
+            $query->where('lead_temperature', $request->priority);
         }
 
-        if ($request->from_date && $request->to_date) {
+        if ($request->filled('source')) {
+            $query->where('lead_source_type_id', $request->source);
+        }
+
+        if ($request->filled('referred_by')) {
+            $query->where('referred_by_id', $request->referred_by);
+        }
+
+        /* ================= ENQUIRY DATE FILTER ================= */
+
+        if ($request->filled('enquiry_from_date') && $request->filled('enquiry_to_date')) {
             $query->whereBetween('enquiry_date', [
-                $request->from_date,
-                $request->to_date,
+                $request->enquiry_from_date,
+                $request->enquiry_to_date,
             ]);
         }
 
+        /* ================= DETAILS FILTER ================= */
+
+        $query->when($request->state, function ($q) use ($request) {
+            $q->whereHas('details', fn ($d) =>
+                $d->where('state', $request->state)
+            );
+        });
+
+        $query->when($request->city, function ($q) use ($request) {
+            $q->whereHas('details', fn ($d) =>
+                $d->where('city', $request->city)
+            );
+        });
+
+        $query->when($request->category, function ($q) use ($request) {
+            $q->whereHas('details', fn ($d) =>
+                $d->where('category', $request->category)
+            );
+        });
+
+        /* ================= FOLLOW UP FILTER ================= */
+
+        $query->when($request->follow_up_type, function ($q) use ($request) {
+            $q->whereHas('followUps', fn ($f) =>
+                $f->where('follow_up_type', $request->follow_up_type)
+            );
+        });
+
+        $query->when($request->follow_up_date, function ($q) use ($request) {
+            $q->whereHas('followUps', fn ($f) =>
+                $f->whereDate('followup_date', $request->follow_up_date)
+            );
+        });
+
         return response()->json([
             'status' => 'success',
-            'data' => $query->latest()->get(),
+            'data'   => $query->latest()->paginate(20),
         ]);
     }
+
 
     /**
      * Store enquiry (basic + details + follow-ups + custom fields)
@@ -64,90 +117,107 @@ class EnquiryController extends Controller
         DB::beginTransaction();
 
         try {
-            // ================= VALIDATION =================
+
+            /* ================= VALIDATION ================= */
             $validated = $request->validate([
                 'student_name' => 'required|string|max:150',
                 'phone'        => 'required|string|max:20',
 
-                'lead_source_type_id' => 'nullable|integer',
-                'referred_by_id'      => 'nullable|integer',
+                'source'       => 'nullable|integer',
+                'referred_by'  => 'nullable|integer',
 
                 'status'           => 'nullable|string',
                 'lead_temperature' => 'nullable|string',
                 'enquiry_date'     => 'nullable|date',
 
-                'details' => 'nullable|array',
-
-                'follow_ups' => 'nullable|array',
-
-                'custom_fields' => 'nullable|array',
-                'custom_fields.*.custom_field_id' => 'required|integer|exists:custom_fields,id',
-                'custom_fields.*.value' => 'nullable|string',
+                // follow up
+                'follow_up_type' => 'nullable|string',
+                'followup_date'  => 'nullable|date',
+                'followup_hh'    => 'nullable|string',
+                'followup_mm'    => 'nullable|string',
             ]);
 
-            // ================= CREATE ENQUIRY =================
+            /* ================= CREATE ENQUIRY ================= */
             $enquiry = Enquiry::create([
-                'enquiry_code' => 'ENQ-' . strtoupper(rand(1000, 9999)),
-                'student_name' => $validated['student_name'],
-                'phone'        => $validated['phone'],
-                'lead_source_type_id' => $request->lead_source_type_id,
-                'referred_by_id'      => $request->referred_by_id,
-                'status'              => $request->status ?? 'new',
-                'lead_temperature'    => $request->lead_temperature,
-                'enquiry_date'        => $request->enquiry_date ?? now()->toDateString(),
+                'enquiry_code' => 'ENQ-' . rand(1000, 9999),
+                'student_name' => $request->student_name,
+                'phone'        => $request->phone,
+
+                'lead_source_type_id' => $request->source,
+                'referred_by_id'      => $request->referred_by,
+
+                'status'           => $request->status ?? 'Open',
+                'lead_temperature' => $request->lead_temperature,
+                'enquiry_date'     => $request->enquiry_date ?? now()->toDateString(),
             ]);
 
-            // ================= DETAILS =================
-            $detailData = $request->input('details', []);
+            /* ================= ENQUIRY DETAILS ================= */
+            $sameAddress = filter_var($request->same_address, FILTER_VALIDATE_BOOLEAN);
 
-            if (!empty($detailData)) {
-                $sameAddress = filter_var(
-                    $detailData['same_address'] ?? false,
-                    FILTER_VALIDATE_BOOLEAN
-                );
+            $detailData = [
+                // BASIC
+                'email'   => $request->email,
+                'gender'  => $request->gender,
+                'dob'     => $request->dob,
 
-                $detailData['same_address'] = $sameAddress ? 1 : 0;
+                // LOCATION
+                'country' => 'India',
+                'state'   => $request->state,
+                'city'    => $request->city,
+                'area'    => $request->area,
+                'pincode' => $request->pincode,
 
-                if ($sameAddress && isset($detailData['current_address'])) {
-                    $detailData['residential_address'] = $detailData['current_address'];
-                }
+                'current_address'     => $request->current_address,
+                'residential_address' => $sameAddress
+                    ? $request->current_address
+                    : $request->residential_address,
 
-                $enquiry->details()->create($detailData);
-            }
+                'same_address' => $sameAddress,
 
-            // ================= FOLLOW UPS =================
-            if ($request->filled('follow_ups')) {
-                foreach ($request->follow_ups as $followUp) {
-                    $enquiry->followUps()->create([
-                        'follow_up_type' => $followUp['follow_up_type'] ?? null,
-                        'followup_date'  => $followUp['followup_date'] ?? null,
-                        'followup_time'  => $followUp['followup_time'] ?? null,
-                        'comment'        => $followUp['comment'] ?? null,
-                    ]);
-                }
-            }
+                // OTHER
+                'alternate_contact' => $request->alternate_contact,
+                'alternate_email'   => $request->alternate_email,
+                'nationality'       => $request->nationality,
+                'birth_place'       => $request->birth_place,
+                'mother_tongue'     => $request->mother_tongue,
+                'category'          => $request->category,
+                'religion'          => $request->religion,
+                'blood_group'       => $request->blood_group,
+                'aadhar_no'         => $request->aadhar_no,
 
-            // ================= CUSTOM FIELDS =================
-            if ($request->filled('custom_fields')) {
-                foreach ($request->custom_fields as $field) {
-                    CustomFieldValue::create([
-                        'enquiry_id' => $enquiry->id,
-                        'custom_field_id' => $field['custom_field_id'],
-                        'value' => $field['value'],
-                    ]);
-                }
+                // PARENT
+                'parent_name'        => $request->parent_name,
+                'parent_contact'     => $request->parent_contact,
+                'parent_email'       => $request->parent_email,
+                'parent_profession'  => $request->parent_profession,
+                'parent_aadhar_no'   => $request->parent_aadhar_no,
+
+                // GUARDIAN
+                'guardian_name'    => $request->guardian_name,
+                'guardian_contact' => $request->guardian_contact,
+                'guardian_email'   => $request->guardian_email,
+
+                'comment' => $request->comment,
+            ];
+
+            $enquiry->details()->create($detailData);
+
+            /* ================= FOLLOW UP ================= */
+            if ($request->follow_up_type) {
+                $enquiry->followUps()->create([
+                    'follow_up_type' => $request->follow_up_type,
+                    'followup_date'  => $request->followup_date,
+                    'followup_time'  => $request->followup_hh . ':' . $request->followup_mm,
+                    'comment'        => $request->comment,
+                ]);
             }
 
             DB::commit();
 
             return response()->json([
                 'status'  => 'success',
-                'message' => 'Enquiry created successfully.',
-                'data'    => $enquiry->load([
-                    'details',
-                    'followUps',
-                    'customFieldValues.field',
-                ]),
+                'message' => 'Enquiry created successfully',
+                'data'    => $enquiry->load(['details', 'followUps']),
             ], 201);
 
         } catch (\Throwable $e) {
@@ -155,11 +225,12 @@ class EnquiryController extends Controller
 
             return response()->json([
                 'status'  => 'error',
-                'message' => 'Failed to create enquiry.',
+                'message' => 'Failed to create enquiry',
                 'error'   => $e->getMessage(),
             ], 500);
         }
     }
+
 
     /**
      * Show enquiry
