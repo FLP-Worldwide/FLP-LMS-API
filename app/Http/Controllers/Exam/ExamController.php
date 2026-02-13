@@ -49,8 +49,153 @@ class ExamController extends Controller
         ], 201);
     }
 
+    public function index(Request $request)
+    {
+        $today = now()->toDateString();
 
-  public function index(Request $request)
+        $query = Exam::with([
+            'course:id,name,standard_id',
+            'course.classRoom:id,name',
+            'batch:id,name,course_id',
+            'subjects.subject:id,name,short_code',
+        ])
+        ->withCount('attendances');
+
+        /* ================= FILTERS ================= */
+
+        if ($request->filled('course_id')) {
+            $query->where('course_id', $request->course_id);
+        }
+
+        if ($request->filled('batch_id')) {
+            $query->where('batch_id', $request->batch_id);
+        }
+
+        if ($request->filled('exam_date')) {
+            $query->whereDate('exam_date', $request->exam_date);
+        }
+
+        if ($request->filled('class_id')) {
+            $query->whereHas('course', function ($q) use ($request) {
+                $q->where('standard_id', $request->class_id);
+            });
+        }
+
+        $exams = $query->latest()->get();
+
+        /* ================= CLASS SUMMARY (NEW) ================= */
+
+        $lastExamDate = $exams
+            ->where('exam_date', '<', now()->toDateString())
+            ->max('exam_date');
+
+        $totalExams   = $exams->count();
+
+        return response()->json([
+            'status' => 'success',
+
+            'meta' => [
+                'total_exams' => $totalExams,
+                'last_exam_date' => $lastExamDate,
+            ],
+
+            'data' => $exams->map(function ($exam) use ($today) {
+
+                $isToday = $exam->exam_date === $today;
+
+                /* ===== TOTAL STUDENTS ===== */
+                $totalStudents = Student::where(
+                    'class',
+                    $exam->course?->standard_id
+                )->count();
+
+                /* ===== ATTENDANCE COUNTS ===== */
+                $attendanceCounts = ExamAttendance::where('exam_id', $exam->id)
+                    ->selectRaw("
+                        SUM(attendance = 1) as present_count,
+                        SUM(attendance = 2) as absent_count,
+                        SUM(attendance = 3) as leave_count,
+                        SUM(attendance = 0) as not_marked_count
+                    ")
+                    ->first();
+
+                $present = (int) $attendanceCounts->present_count;
+                $absent  = (int) $attendanceCounts->absent_count;
+                $leave   = (int) $attendanceCounts->leave_count;
+                $notMarked = (int) $attendanceCounts->not_marked_count;
+
+                $totalMarked = $present + $absent + $leave;
+
+                /* ===== ATTENDANCE STATUS ===== */
+                $attendanceStatus = 'NOT_MARKED';
+
+                if ($totalMarked == 0) {
+                    $attendanceStatus = 'NOT_MARKED';
+                } elseif ($totalMarked < $totalStudents) {
+                    $attendanceStatus = 'PARTIAL';
+                } elseif ($totalMarked == $totalStudents) {
+                    $attendanceStatus = 'FULL';
+                }
+
+                return [
+                    'id' => $exam->id,
+                    'exam_date' => $exam->exam_date,
+                    'start_time' => $exam->start_time,
+                    'end_time' => $exam->end_time,
+                    'status' => $exam->status,
+                    'is_today' => $isToday,
+
+                    /* 🔥 NEW ACCURATE ATTENDANCE BLOCK */
+                    'attendance' => [
+                        'total_students' => $totalStudents,
+                        'present' => $present,
+                        'absent' => $absent,
+                        'leave' => $leave,
+                        'not_marked' => $totalStudents - $totalMarked,
+                        'marked_count' => $totalMarked,
+                        'status' => $attendanceStatus,
+                    ],
+
+                    /* MARKS INFO */
+                    'marks_entered' => $exam->subjects->whereNotNull('marks')->count(),
+                    'total_subjects' => $exam->subjects->count(),
+
+                    'course' => $exam->course ? [
+                        'id' => $exam->course->id,
+                        'name' => $exam->course->name,
+                    ] : null,
+
+                    'batch' => $exam->batch ? [
+                        'id' => $exam->batch->id,
+                        'name' => $exam->batch->name,
+                    ] : null,
+
+                    'class' => $exam->course?->classRoom ? [
+                        'id' => $exam->course->classRoom->id,
+                        'name' => $exam->course->classRoom->name,
+                    ] : null,
+
+                    'subjects' => $exam->subjects
+                        ->whereNotNull('subject_id')
+                        ->map(function ($s) {
+                            return [
+                                'id' => $s->subject?->id,
+                                'name' => $s->subject?->name,
+                                'short_code' => $s->subject?->short_code,
+                                'marks' => $s->marks,
+                            ];
+                        })
+                        ->values(),
+
+                ];
+            }),
+
+        ]);
+    }
+
+
+
+  public function index_old(Request $request)
     {
         $today = now()->toDateString();
 

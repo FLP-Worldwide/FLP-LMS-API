@@ -17,7 +17,7 @@ class Exam extends Model
     {
         return $this->hasMany(ExamSubject::class);
     }
-
+ 
 
     // 🔥 ADD THESE
     public function course()
