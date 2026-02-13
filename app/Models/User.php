@@ -43,6 +43,11 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasMany(InstituteUser::class);
     }
 
+    public function teacher()
+    {
+        return $this->hasOne(Teacher::class);
+    }
+
     // ✅ SINGLE institute record (this is what APIs use)
     public function instituteUser()
     {
@@ -99,6 +104,10 @@ class User extends Authenticatable implements JWTSubject
         return [
             'role' => $this->role,
         ];
+    }
+    public function role()
+    {
+        return $this->belongsTo(Role::class);
     }
 
 }

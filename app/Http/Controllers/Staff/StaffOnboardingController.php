@@ -96,7 +96,9 @@ class StaffOnboardingController extends Controller
             if ($roleSlug === 'teacher') {
 
                 $teacher = Teacher::create([
+                    'user_id' => $user->id,
                     'first_name'   => $data['first_name'] ?? $fullName,
+                    'employee_id' => $user->uid,
                     'last_name'    => $data['last_name'] ?? null,
                     'designation'  => $data['designation'] ?? 'Teacher',
                     'department'   => $data['department'] ?? null,

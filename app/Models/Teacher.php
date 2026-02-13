@@ -14,11 +14,18 @@ class Teacher extends Model
     protected $guarded  = ['id'];
     protected $hidden = ['created_at','updated_at','deleted_at'];
 
-    protected static function booted()
+       protected static function booted()
         {
             static::creating(function ($teacher) {
-                $teacher->tuid = (string) Str::uuid();
-                $teacher->employee_id = (string) "TE-".rand(1000,9999);
+
+                if (empty($teacher->tuid)) {
+                    $teacher->tuid = (string) Str::uuid();
+                }
+
+                if (empty($teacher->employee_id)) {
+                    $teacher->employee_id = "TE" . rand(1000, 9999);
+                }
+
             });
         }
 

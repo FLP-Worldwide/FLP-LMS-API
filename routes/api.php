@@ -239,6 +239,9 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::put('attendance/{user_id}', [\App\Http\Controllers\Staff\StaffController::class,'updateAttendance']);
         Route::post('create', [\App\Http\Controllers\Staff\StaffOnboardingController::class, 'store']);
         Route::delete('{id}', [\App\Http\Controllers\Staff\StaffOnboardingController::class, 'destroy']);
+        Route::get('{id}', [\App\Http\Controllers\Staff\StaffController::class, 'show']);
+        Route::get('{id}/attendance', [\App\Http\Controllers\Staff\StaffController::class, 'attendance']);
+        Route::put('{id}', [\App\Http\Controllers\Staff\StaffController::class, 'update']);
     });
 
     Route::prefix('payroll')->group(function () {

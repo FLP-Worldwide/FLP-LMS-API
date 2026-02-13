@@ -338,4 +338,256 @@ class StaffController extends Controller
             ->orderByDesc('last_activity')
             ->value('last_activity');
     }
+
+
+    public function update(Request $request, $id)
+    {
+        DB::transaction(function () use ($request, $id) {
+
+            $user = User::with(['teacher', 'staffDetail'])
+                ->findOrFail($id);
+
+            $validated = $request->validate([
+                'role_id' => 'nullable|exists:roles,id',
+                'first_name' => 'required|string|max:100',
+                'last_name' => 'nullable|string|max:100',
+                'email' => 'required|email|unique:users,email,' . $id,
+                'phone' => 'nullable|string|max:20',
+                'department' => 'nullable|string|max:150',
+                'class_room_ids' => 'nullable|array',
+                'class_room_ids.*' => 'exists:class_rooms,id',
+                'subject_ids' => 'nullable|array',
+                'subject_ids.*' => 'exists:subjects,id',
+            ]);
+
+            /**
+             * ------------------------------------
+             * 1️⃣ Prevent role change for non-teacher staff
+             * ------------------------------------
+             */
+            if ($user->role !== 'teacher') {
+                $validated['role_id'] = $user->role_id;
+            }
+
+            /**
+             * ------------------------------------
+             * 2️⃣ Update USERS table
+             * ------------------------------------
+             */
+            $user->update([
+                'name' => trim($validated['first_name'] . ' ' . ($validated['last_name'] ?? '')),
+                'email' => $validated['email'],
+                'phone' => $validated['phone'],
+                'role_id' => $validated['role_id'] ?? $user->role_id,
+            ]);
+
+            /**
+             * ------------------------------------
+             * 3️⃣ Update INSTITUTE_USERS table
+             * ------------------------------------
+             */
+            InstituteUser::where('user_id', $user->id)
+                ->update([
+                    'role_id' => $validated['role_id'] ?? $user->role_id,
+                ]);
+
+            /**
+             * ------------------------------------
+             * 4️⃣ If Teacher
+             * ------------------------------------
+             */
+            if ($user->role === 'teacher') {
+
+                $teacher = $user->teacher;
+
+                if ($teacher) {
+                    $teacher->update([
+                        'first_name' => $validated['first_name'],
+                        'last_name' => $validated['last_name'],
+                        'department' => $validated['department'],
+                    ]);
+
+                    if ($request->has('class_room_ids')) {
+                        $teacher->classRooms()->sync(
+                            $validated['class_room_ids'] ?? []
+                        );
+                    }
+
+                    if ($request->has('subject_ids')) {
+                        $teacher->subjects()->sync(
+                            $validated['subject_ids'] ?? []
+                        );
+                    }
+                }
+
+            } else {
+
+                /**
+                 * ------------------------------------
+                 * 5️⃣ Update Staff Details
+                 * ------------------------------------
+                 */
+                if ($user->staffDetail) {
+                    $user->staffDetail->update([
+                        'designation' => $validated['department'] ?? null,
+                        'phone' => $validated['phone'],
+                    ]);
+                }
+            }
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Staff updated successfully',
+        ]);
+    }
+
+
+    public function show($id)
+    {
+        $user = User::with([
+                'teacher.classRooms',
+                'teacher.subjects',
+                'teacher.detail',   // if teacher_details relation exists
+                'staffDetail',
+            ])
+            ->findOrFail($id);
+
+        // 🔹 Get role_id from institute_users
+        $instituteUser = InstituteUser::where('user_id', $user->id)->first();
+
+        $nameParts = explode(' ', $user->name, 2);
+
+        $isTeacher = $user->role === 'teacher';
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'id' => $user->id,
+
+                'role' => $user->role,
+                'role_id' => $instituteUser?->role_id, // ✅ FIXED
+
+                'first_name' => $nameParts[0] ?? null,
+                'last_name' => $nameParts[1] ?? null,
+
+                'email' => $user->email,
+
+                // 🔥 FIXED PHONE SOURCE
+                'phone' => $isTeacher
+                    ? $user->teacher?->detail?->phone
+                    : $user->staffDetail?->phone,
+
+                'department' => $isTeacher
+                    ? $user->teacher?->department
+                    : $user->staffDetail?->designation,
+
+                'class_room_ids' => $isTeacher
+                    ? $user->teacher?->classRooms?->pluck('id')->values()
+                    : [],
+
+                'subject_ids' => $isTeacher
+                    ? $user->teacher?->subjects?->pluck('id')->values()
+                    : [],
+            ]
+        ]);
+    }
+
+
+    public function attendance(Request $request, $userId)
+    {
+        /* ================= FILTER LOGIC ================= */
+
+        $from = Carbon::today()->startOfMonth();
+        $to   = Carbon::today()->endOfMonth();
+
+        if ($request->month && $request->year) {
+            $from = Carbon::create($request->year, $request->month, 1)->startOfMonth();
+            $to   = $from->copy()->endOfMonth();
+        }
+
+        if ($request->year && !$request->month) {
+            $from = Carbon::create($request->year, 1, 1)->startOfYear();
+            $to   = $from->copy()->endOfYear();
+        }
+
+        if ($request->date) {
+            $from = $to = Carbon::parse($request->date);
+        }
+
+        if ($request->from && $request->to) {
+            $from = Carbon::parse($request->from);
+            $to   = Carbon::parse($request->to);
+        }
+
+        /* ================= RESOLVE USER ================= */
+
+        $user = User::with(['teacher', 'staffDetail'])->findOrFail($userId);
+
+        $teacher = $user->teacher; // 🔥 correct relation
+
+        /* ================= FETCH ATTENDANCE ================= */
+
+        $attendanceQuery = UserAttendance::whereBetween(
+            'attendance_date',
+            [$from, $to]
+        );
+
+        if ($teacher) {
+            $attendanceQuery->where('teacher_id', $teacher->id);
+        } else {
+            $attendanceQuery->where('user_id', $user->id);
+        }
+
+        $attendances = $attendanceQuery
+            ->orderBy('attendance_date')
+            ->get();
+
+        /* ================= CALCULATE TOTALS ================= */
+
+        $totalPresent = $attendances->where('status', 'P')->count();
+        $totalAbsent  = $attendances->where('status', 'A')->count();
+        $totalLeave   = $attendances->whereIn('status', ['L', 'LP', 'HP'])->count();
+
+        /* ================= RESPONSE ================= */
+
+        return response()->json([
+            'status' => 'success',
+
+            'filter' => [
+                'from' => $from->toDateString(),
+                'to'   => $to->toDateString(),
+            ],
+
+            'staff' => [
+                'user_id' => $user->id,
+                'name' => $user->name,
+                'role' => $user->role,
+                'designation' => $teacher
+                    ? $teacher->designation
+                    : $user->staffDetail?->designation,
+                'department' => $teacher?->department,
+                'phone' => $teacher
+                    ? $teacher?->detail?->phone
+                    : $user->staffDetail?->phone,
+                'email' => $user->email,
+            ],
+
+            /* 🔥 SUMMARY BLOCK */
+            'summary' => [
+                'total_days' => $attendances->count(),
+                'present' => $totalPresent,
+                'absent' => $totalAbsent,
+                'leave' => $totalLeave,
+            ],
+
+            /* 🔥 DAILY RECORDS */
+            'attendance' => $attendances->map(fn ($a) => [
+                'date' => $a->attendance_date->toDateString(),
+                'status' => $a->status,
+            ]),
+        ]);
+    }
+
+
 }
