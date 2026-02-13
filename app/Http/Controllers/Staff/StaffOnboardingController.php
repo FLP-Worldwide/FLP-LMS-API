@@ -151,4 +151,26 @@ class StaffOnboardingController extends Controller
             ], 201);
         });
     }
+
+    public function destroy($id)
+    {
+        $user = User::findOrFail($id);
+
+        if ($user->role === 'teacher') {
+            $teacher = Teacher::where('first_name', $user->name)->first();
+            if ($teacher) {
+                $teacher->classRooms()->detach();
+                $teacher->subjects()->detach();
+                $teacher->delete();
+            }
+        }
+
+        InstituteUser::where('user_id', $user->id)->delete();
+        $user->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Staff member deleted successfully',
+        ]);
+    }
 }
