@@ -167,6 +167,8 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::put('{id}', [ExamController::class, 'update']);
         Route::delete('{id}', [ExamController::class, 'destroy']);
         Route::post('/mark-attendance', [ExamController::class, 'markAttendance']);
+        Route::post('{id}/cancel', [ExamController::class, 'cancel']);
+
     });
 
     Route::prefix('live-class')->group(function () {

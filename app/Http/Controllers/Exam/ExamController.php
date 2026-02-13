@@ -103,6 +103,7 @@ class ExamController extends Controller
 
                     'room' => $exam->subjects->first()?->room_no,
                     'topic' => $exam->topic ? $exam->topic->name : null,
+                    'status' => $exam->status,
 
                     // 🔑 Attendance flags
                     'is_today' => $isToday,
@@ -110,10 +111,10 @@ class ExamController extends Controller
                         ? $exam->attendances_count > 0
                         : null,
 
-                    'course' => [
+                    'course' => $exam->course ? [
                         'id' => $exam->course->id,
                         'name' => $exam->course->name,
-                    ],
+                    ] : null,
 
                     'batch' => $exam->batch ? [
                         'id' => $exam->batch->id,
@@ -121,16 +122,22 @@ class ExamController extends Controller
                         'course_id' => $exam->batch->course_id,
                     ] : null,
 
-                    'class' => [
+
+
+                    'class' => $exam->course?->classRoom ? [
                         'id' => $exam->course->classRoom->id,
                         'name' => $exam->course->classRoom->name,
-                    ],
+                    ] : null,
 
-                    'subjects' => $exam->subjects->map(fn ($s) => [
-                        'id' => $s->subject->id,
-                        'name' => $s->subject->name,
-                        'marks' => $s->marks,
-                    ]),
+
+                    'subjects' => $exam->subjects->map(function ($s) {
+                        return [
+                            'id' => $s->subject?->id,
+                            'name' => $s->subject?->name,
+                            'marks' => $s->marks,
+                        ];
+                    }),
+
                 ];
             }),
         ]);
@@ -190,13 +197,24 @@ class ExamController extends Controller
     {
         $exam = Exam::findOrFail($id);
 
+        if ($exam->attendances()->exists()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Cannot cancel exam. Attendance already marked.',
+            ], 422);
+        }
+
+
         $request->validate([
             'exam_date' => 'required|date',
             'start_time' => 'required',
             'end_time' => 'required',
-            'subjects' => 'required|array|min:1',
+            'subjects' => 'sometimes|array|min:1',
+            'subjects.*.subject_id' => 'required_with:subjects|exists:subjects,id',
+            'subjects.*.marks' => 'required_with:subjects|numeric|min:0',
         ]);
 
+        // ✅ Update only basic fields
         $exam->update($request->only([
             'exam_date',
             'start_time',
@@ -205,12 +223,15 @@ class ExamController extends Controller
             'description',
         ]));
 
-        // 🔥 Remove old subjects
-        $exam->subjects()->delete();
+        // ✅ Only touch subjects IF provided
+        if ($request->has('subjects')) {
 
-        // 🔥 Insert new subjects
-        foreach ($request->subjects as $subject) {
-            $exam->subjects()->create($subject);
+            // Option 1: Clean replace (safe)
+            $exam->subjects()->delete();
+
+            foreach ($request->subjects as $subject) {
+                $exam->subjects()->create($subject);
+            }
         }
 
         return response()->json([
@@ -218,6 +239,7 @@ class ExamController extends Controller
             'message' => 'Exam updated successfully',
         ]);
     }
+
 
     public function destroy($id)
     {
@@ -257,6 +279,36 @@ class ExamController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => 'Exam attendance saved successfully.',
+        ]);
+    }
+
+    public function cancel($id)
+    {
+        $exam = Exam::findOrFail($id);
+
+        // Prevent cancelling completed exam
+        if ($exam->exam_date < now()->toDateString()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Cannot cancel a completed exam.',
+            ], 422);
+        }
+
+        // Already cancelled
+        if ($exam->status === 'cancelled') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Exam is already cancelled.',
+            ], 422);
+        }
+
+        $exam->update([
+            'status' => 'cancelled',
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Exam cancelled successfully.',
         ]);
     }
 
