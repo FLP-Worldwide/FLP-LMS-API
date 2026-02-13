@@ -9,6 +9,7 @@ use App\Models\TeacherDetail;
 use App\Models\StaffDetail;
 use App\Models\InstituteUser;
 use App\Models\Role;
+use App\Models\UserAttendance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -154,23 +155,70 @@ class StaffOnboardingController extends Controller
 
     public function destroy($id)
     {
-        $user = User::findOrFail($id);
+        DB::transaction(function () use ($id) {
 
-        if ($user->role === 'teacher') {
-            $teacher = Teacher::where('first_name', $user->name)->first();
-            if ($teacher) {
-                $teacher->classRooms()->detach();
-                $teacher->subjects()->detach();
-                $teacher->delete();
+            $user = User::findOrFail($id);
+
+            /**
+             * ------------------------------------
+             * 1️⃣ IF TEACHER
+             * ------------------------------------
+             */
+            if ($user->role === 'teacher') {
+
+                $teacher = Teacher::whereHas('detail', function ($q) use ($user) {
+                    $q->where('email', $user->email);
+                })->first();
+
+                if ($teacher) {
+
+                    // Detach pivot relations
+                    $teacher->classRooms()->detach();
+                    $teacher->subjects()->detach();
+
+                    // Delete teacher detail
+                    $teacher->detail()?->delete();
+
+                    // Delete teacher
+                    $teacher->delete();
+                }
             }
-        }
 
-        InstituteUser::where('user_id', $user->id)->delete();
-        $user->delete();
+            /**
+             * ------------------------------------
+             * 2️⃣ IF OTHER STAFF
+             * ------------------------------------
+             */
+            if ($user->staffDetail) {
+                $user->staffDetail->delete();
+            }
+
+            /**
+             * ------------------------------------
+             * 3️⃣ DELETE INSTITUTE MAPPING
+             * ------------------------------------
+             */
+            InstituteUser::where('user_id', $user->id)->delete();
+
+            /**
+             * ------------------------------------
+             * 4️⃣ DELETE ATTENDANCE
+             * ------------------------------------
+             */
+            UserAttendance::where('user_id', $user->id)->delete();
+
+            /**
+             * ------------------------------------
+             * 5️⃣ DELETE USER
+             * ------------------------------------
+             */
+            $user->delete();
+        });
 
         return response()->json([
             'status' => 'success',
             'message' => 'Staff member deleted successfully',
         ]);
     }
+
 }
