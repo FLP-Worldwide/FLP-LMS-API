@@ -6,19 +6,21 @@ use App\Traits\BelongsToInstitute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class   Subject extends Model
+class StudentAttendance extends Model
 {
     use SoftDeletes, BelongsToInstitute;
     //
     protected $guarded  = ['id'];
     protected $hidden = ['created_at','updated_at','deleted_at'];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-    ];
-
-    public function class()
+    public function student()
     {
-        return $this->belongsTo(\App\Models\ClassRoom::class, 'class_id');
+        return $this->belongsTo(Student::class);
     }
+
+    public function marker()
+    {
+        return $this->belongsTo(User::class, 'marked_by');
+    }
+    
 }

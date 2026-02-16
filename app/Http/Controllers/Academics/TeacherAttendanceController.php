@@ -204,6 +204,9 @@ class TeacherAttendanceController extends Controller
                     ],
                     [
                         'status' => $row['status'],
+                        'leave_status' => 'approved',
+                        'applied_on' => today()->toDateString(),
+                        'remark'       => $row['remark'] ?? 'Approved by Admin',
                     ]
                 );
             }
@@ -269,4 +272,81 @@ class TeacherAttendanceController extends Controller
             ->whereBetween('attendance_date', [$from, $to])
             ->get();
     }
+
+
+    // staffOnLeave
+    public function staffOnLeave(Request $request)
+    {
+        $validated = $request->validate([
+            'date' => 'required|date',
+        ]);
+
+        $date = $validated['date'];
+
+        $attendances = UserAttendance::with([
+                'teacher.user',  // for teacher-based staff
+                'user'           // for direct users (accountant etc.)
+            ])
+            ->whereDate('attendance_date', $date)
+            ->where('status', 'L')
+            ->where('leave_status', 'approved')
+            ->get();
+
+        $staff = $attendances->map(function ($attendance) {
+
+            // Case 1: Teacher attendance
+            if ($attendance->teacher_id && $attendance->teacher) {
+
+                $teacher = $attendance->teacher;
+                $user    = $teacher->user;
+
+                return [
+                    'attendance_id' => $attendance->id,
+                    'type'          => 'teacher',
+                    'staff_id'      => $teacher->id,
+                    'user_id'       => $user->id ?? null,
+                    'name'          => trim($teacher->first_name . ' ' . $teacher->last_name),
+                    'email'         => $user->email ?? null,
+                    'designation'   => $teacher->designation,
+                    'department'    => $teacher->department,
+                    'leave_status'  => $attendance->leave_status,
+                    'applied_on'       => $attendance->attendance_date->toDateString(),
+                    'for_date'       => $attendance->attendance_date->toDateString(),
+                    'remark'        => $attendance->remark,
+                ];
+            }
+
+            // Case 2: Direct user attendance (non-teacher staff)
+            if ($attendance->user_id && $attendance->user) {
+
+                $user = $attendance->user;
+
+                return [
+                    'attendance_id' => $attendance->id,
+                    'type'          => 'staff',
+                    'staff_id'      => $user->id,
+                    'user_id'       => $user->id,
+                    'name'          => $user->name,
+                    'email'         => $user->email,
+                    'designation'   => $user->role,
+                    'department'    => null,
+                    'leave_status'  => $attendance->leave_status,
+                    'applied_on'       => $attendance->attendance_date->toDateString(),
+                    'for_date'       => $attendance->attendance_date->toDateString(),
+                    'remark'        => $attendance->remark,
+                ];
+            }
+
+            return null;
+        })->filter()->values();
+
+        return response()->json([
+            'status' => 'success',
+            'date'   => $date,
+            'total_staff_on_leave' => $staff->count(),
+            'data'   => $staff,
+        ]);
+    }
+
+
 }

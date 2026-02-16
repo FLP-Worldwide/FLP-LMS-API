@@ -90,7 +90,7 @@ class BatchDetailsController extends Controller
             ->where('is_active', true)
             ->get();
 
-     $weekStart = now()->startOfWeek(); // Monday
+    $weekStart = now()->startOfWeek(); // Monday
     $weekEnd   = now()->endOfWeek();   // Sunday
 
     // Ensure week range stays inside batch duration

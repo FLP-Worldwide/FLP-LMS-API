@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Students;
 
 use App\Http\Controllers\Controller;
+use App\Models\Exam;
 use App\Models\InstituteUser;
 use App\Models\Student;
 use App\Models\StudentDetail;
@@ -75,41 +76,47 @@ class StudentController extends Controller
             'status' => 'required|in:active,inactive,passed,left',
             'admission_date' => 'nullable|date',
 
-            'details.dob' => 'nullable|date',
-            'details.gender' => 'nullable|in:male,female,other',
-            'details.blood_group' => 'nullable|string|max:10',
-            'details.email' => 'nullable|email',
-            'details.phone' => 'nullable|string|max:15',
-            'details.father_name' => 'nullable|string|max:100',
-            'details.mother_name' => 'nullable|string|max:100',
-            'details.parent_phone' => 'nullable|string|max:15',
-            'details.address' => 'nullable|string',
-            'details.city' => 'nullable|string|max:100',
-            'details.state' => 'nullable|string|max:100',
-            'details.medical_info' => 'nullable|string',
+            'dob' => 'nullable|date',
+            'gender' => 'nullable|in:male,female,other',
+            'blood_group' => 'nullable|string|max:10',
+            'email' => 'nullable|email',
+            'phone' => 'nullable|string|max:20',
+            'father_name' => 'nullable|string|max:100',
+            'mother_name' => 'nullable|string|max:100',
+            'parent_phone' => 'nullable|string|max:20',
+            'address' => 'nullable|string',
+            'city' => 'nullable|string|max:100',
+            'state' => 'nullable|string|max:100',
+            'medical_info' => 'nullable|string',
+
+            // file validation
+            'aadhaar' => 'nullable|file|mimes:pdf,jpg,jpeg,png,csv,docx,doc,xlsx,xls|max:5120',
+            'document' => 'nullable|file|mimes:pdf,jpg,jpeg,png,csv,docx,doc,xlsx,xls|max:5120',
+            'document_other' => 'nullable|file|mimes:pdf,jpg,jpeg,png,csv,docx,doc,xlsx,xls|max:5120',
         ]);
 
         DB::beginTransaction();
-        $password = Str::random(10);
-        $user = User::create([
-            'uid' => 'ST'.Str::random(5), // 'ST' for 'Student'
-            'name' => $validated['first_name'].' '.$validated['last_name'],
-            'email' => $validated['details']['email'] ?? null,
-            'temp_password' => Crypt::encryptString($password),
-            'password' => Hash::make($password),
-            'role' => 'student',
-
-        ]);
-
-         InstituteUser::create([
-
-            'user_id' => $user->id,
-            'role' => 'student',
-
-        ]);
 
         try {
-            // 1️⃣ Create student without roll_no first
+
+            // 🔹 1️⃣ Create Login User
+            $password = Str::random(10);
+
+            $user = User::create([
+                'uid' => 'ST'.Str::random(5),
+                'name' => $validated['first_name'].' '.$validated['last_name'],
+                'email' => $validated['email'] ?? null,
+                'temp_password' => Crypt::encryptString($password),
+                'password' => Hash::make($password),
+                'role' => 'student',
+            ]);
+
+            InstituteUser::create([
+                'user_id' => $user->id,
+                'role' => 'student',
+            ]);
+
+            // 🔹 2️⃣ Create Student
             $student = Student::create([
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'] ?? null,
@@ -120,13 +127,48 @@ class StudentController extends Controller
                 'admission_date' => $validated['admission_date'] ?? null,
             ]);
 
-            // 2️⃣ Create student details
+            // 🔹 3️⃣ Handle File Uploads
+            $aadhaarPath = null;
+            $docPath = null;
+            $docOtherPath = null;
+
+            if ($request->hasFile('aadhaar')) {
+                $aadhaarPath = $request->file('aadhaar')
+                    ->store('students/aadhaar', 'public');
+            }
+
+            if ($request->hasFile('document')) {
+                $docPath = $request->file('document')
+                    ->store('students/documents', 'public');
+            }
+
+            if ($request->hasFile('document_other')) {
+                $docOtherPath = $request->file('document_other')
+                    ->store('students/other_documents', 'public');
+            }
+
+            // 🔹 4️⃣ Create Student Details
             StudentDetail::create([
                 'student_id' => $student->id,
-                ...($validated['details'] ?? [])
+                'dob' => $validated['dob'] ?? null,
+                'gender' => $validated['gender'] ?? null,
+                'blood_group' => $validated['blood_group'] ?? null,
+                'email' => $validated['email'] ?? null,
+                'phone' => $validated['phone'] ?? null,
+                'father_name' => $validated['father_name'] ?? null,
+                'mother_name' => $validated['mother_name'] ?? null,
+                'parent_phone' => $validated['parent_phone'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'city' => $validated['city'] ?? null,
+                'state' => $validated['state'] ?? null,
+                'medical_info' => $validated['medical_info'] ?? null,
+
+                'aadhaar_doc' => $aadhaarPath,
+                'document' => $docPath,
+                'document_other' => $docOtherPath,
             ]);
 
-            // 3️⃣ Recalculate roll numbers alphabetically
+            // 🔹 5️⃣ Recalculate Roll Numbers
             $this->recalculateRollNumbers(
                 $student->class,
                 $student->section
@@ -141,13 +183,16 @@ class StudentController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
+
             DB::rollBack();
+
             return response()->json([
                 'status' => 'error',
                 'message' => $e->getMessage(),
             ], 500);
         }
     }
+
 
     /**
      * 🔁 Roll number recalculation
@@ -172,19 +217,45 @@ class StudentController extends Controller
     /* =====================================================
        👁️ SHOW – Student Details
     ===================================================== */
-public function show($id)
-{
-    $student = Student::with([
-        'details',
-        'classRoom.courses',
-        'classRoom.courses.batches',
-    ])->findOrFail($id);
+    public function show($id)
+    {
+        $student = Student::with([
+            'details',
+            'classRoom',
+            'examAttendances',
+        ])->findOrFail($id);
 
-    return response()->json([
-        'status' => 'success',
-        'data' => $student,
-    ]);
-}
+        // 🔹 Get exams for student class
+       $exams = Exam::whereHas('course', function ($q) use ($student) {
+                $q->where('standard_id', $student->class);
+            })
+            ->with(['course', 'batch'])
+            ->get()
+            ->map(function ($exam) use ($student) {
+
+                $attendance = $exam->attendances()
+                    ->where('student_id', $student->id)
+                    ->first();
+
+                return [
+                    'exam_id' => $exam->id,
+                    'title' => $exam->title,
+                    'exam_date' => $exam->exam_date,
+                    'start_time' => $exam->start_time,
+                    'end_time' => $exam->end_time,
+                    'status' => $exam->status,
+                    'attended' => $attendance ? true : false,
+                    'attendance_status' => $attendance->attendance ?? null,
+                ];
+            });
+
+
+        return response()->json([
+            'status' => 'success',
+            'data' => array_merge($student->toArray(), ['exams' => $exams]),
+        ]);
+    }
+
 
 
     /* =====================================================

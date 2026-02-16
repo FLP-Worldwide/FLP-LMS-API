@@ -304,6 +304,7 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
     Route::get('/teacher-attendance', [TeacherAttendanceController::class, 'index']);
     Route::post('/teacher-attendance', [TeacherAttendanceController::class, 'store']);
     Route::put('/teacher-attendance/{date}', [TeacherAttendanceController::class, 'bulkUpdate']);
+    Route::get('/staff-leaves', [TeacherAttendanceController::class, 'staffOnLeave']);
 
     Route::prefix('leave')->group(function () {
         Route::apiResource('categories', LeaveController::class)
