@@ -285,8 +285,21 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
     ->group(function () {
         Route::get('/', [ClassRoutineController::class, 'index']);
         Route::post('/', [ClassRoutineController::class, 'store']);
+        Route::get('schedule/by-date', [ClassRoutineController::class, 'scheduleByDate']);
+
+        Route::get('schedule/today-classes', [ClassRoutineController::class, 'listClassAttendance']);
+        Route::get('/mark-attendance', [ClassRoutineController::class, 'todayClassesAttendance']);
+        Route::post('/mark-attendance', [ClassRoutineController::class, 'markAttendance']);
+
+        Route::post('cancel-single', [ClassRoutineController::class, 'cancelSingleClass']);
+        Route::post('reschedule-single', [ClassRoutineController::class, 'rescheduleSingleClass']);
+
         Route::get('{id}', [ClassRoutineController::class, 'show']);
         Route::put('{id}', [ClassRoutineController::class, 'update']);
+
+        Route::delete('{id}', [ClassRoutineController::class, 'deleteSchedule'])
+            ->whereNumber('id');
+
     });
 
     Route::prefix('rooms')

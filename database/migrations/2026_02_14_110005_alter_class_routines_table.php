@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // pending
         Schema::table('class_routines', function (Blueprint $table) {
 
             $table->unsignedBigInteger('course_id')->after('institute_id');

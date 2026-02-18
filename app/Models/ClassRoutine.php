@@ -43,4 +43,19 @@ class ClassRoutine extends Model
         return $this->belongsTo(Teacher::class, 'teacher_id');
     }
 
+    public function course()
+    {
+        return $this->belongsTo(Course::class);
+    }
+
+    public function batch()
+    {
+        return $this->belongsTo(Batch::class);
+    }
+    public function exceptions()
+    {
+        return $this->hasMany(ClassRoutineException::class, 'class_routine_id');
+    }
+
+
 }

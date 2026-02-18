@@ -42,7 +42,7 @@ return new class extends Migration
 
                 'start_time',
                 'end_time'
-            ], 'unique_class_time_slot');
+            ]);
             $table->softDeletes();
             $table->timestamps();
         });
