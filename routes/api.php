@@ -8,6 +8,7 @@ use App\Http\Controllers\Academics\RoomController;
 use App\Http\Controllers\Academics\SubjectController;
 use App\Http\Controllers\Academics\TeacherAttendanceController;
 use App\Http\Controllers\Academics\TeacherController;
+use App\Http\Controllers\AcademicYearController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Fees\FeePaymentApprovalController;
@@ -48,6 +49,7 @@ use App\Http\Controllers\Lead\ReferredByController;
 use App\Http\Controllers\PayeeController;
 use App\Http\Controllers\PayerController;
 use App\Http\Controllers\Payroll\UserSalaryTemplateController;
+use App\Http\Controllers\Reports\StudentExportController;
 use App\Http\Controllers\Settings\AssignmentController;
 use App\Http\Controllers\Settings\LiveClassSettingController;
 use App\Http\Controllers\Settings\SalaryTemplateController;
@@ -200,6 +202,17 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
 
         Route::delete('{id}', [StudyResourceController::class, 'destroy']);
     });
+
+    Route::prefix('academic-years')->group(function () {
+
+        Route::get('/', [AcademicYearController::class, 'index']);
+        Route::post('/', [AcademicYearController::class, 'store']);
+        Route::get('{id}', [AcademicYearController::class, 'show']);
+        Route::put('{id}', [AcademicYearController::class, 'update']);
+        Route::delete('{id}', [AcademicYearController::class, 'destroy']);
+
+    });
+
 
     Route::prefix('assignments')->group(function () {
         Route::post('/', [AssignmentController::class, 'store']);
@@ -465,5 +478,12 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
      });
 
 
+      Route::prefix('reports')
+        ->group(function () {
+            Route::get('/students/export', [StudentExportController::class, 'export']);
+            Route::get('/students/import/template', [StudentExportController::class, 'downloadTemplate']);
+
+
+        });
 
 });
