@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Exports\InventoryPurchaseExport;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use App\Models\InventoryPurchase;
@@ -9,6 +10,7 @@ use App\Models\InventoryPurchaseItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
 
 class InventoryPurchaseController extends Controller
 {
@@ -151,6 +153,7 @@ class InventoryPurchaseController extends Controller
             ], 500);
         }
     }
+
     // ➕ CREATE PURCHASE
     public function store(Request $request)
     {
@@ -226,4 +229,13 @@ class InventoryPurchaseController extends Controller
             ], 500);
         }
     }
+
+        // ➕ EXPORT PURCHASES
+        public function export()
+        {
+            return Excel::download(
+                new InventoryPurchaseExport(),
+                'purchases_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
+            );
+        }
 }

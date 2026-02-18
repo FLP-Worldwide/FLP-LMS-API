@@ -2,28 +2,27 @@
 
 namespace App\Exports;
 
-use App\Models\Supplier;
+use App\Models\InventorySupplier;
+
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 
-class SupplierExport implements FromCollection, WithHeadings
+class InventorySupplierExport implements FromCollection, WithHeadings
 {
     public function collection()
     {
-        return Supplier::with('categories')
+        return InventorySupplier::query()
             ->get()
             ->map(function ($supplier) {
 
                 return [
                     'ID'              => $supplier->id,
-                    'Company Name'    => $supplier->company_name,
+                    'Company Name'    => $supplier->company,
                     'Email'           => $supplier->email,
                     'Mobile'          => $supplier->mobile,
-                    'Contact Person'  => $supplier->contact_person,
+                    'Contact Person'  => $supplier->supplier,
                     'Address'         => $supplier->address,
-                    'Categories'      => $supplier->categories
-                        ? $supplier->categories->pluck('name')->implode(', ')
-                        : null,
+
                     'Status'          => $supplier->is_active ? 'Active' : 'Inactive',
                     'Created At'      => $supplier->created_at?->format('Y-m-d'),
                 ];

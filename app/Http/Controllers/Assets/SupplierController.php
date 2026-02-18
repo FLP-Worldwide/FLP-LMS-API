@@ -213,12 +213,6 @@ class SupplierController extends Controller
     }
 
 
-    public function export()
-    {
-        return Excel::download(
-            new SupplierExport(),
-            'suppliers_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
-        );
-    }
+
 
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Exports\InventorySaleExport;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use App\Models\InventorySale;
@@ -10,6 +11,7 @@ use App\Models\InventorySalePayment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
 
 class InventorySaleController extends Controller
 {
@@ -208,5 +210,10 @@ class InventorySaleController extends Controller
         ]);
     }
 
+
+    public function export()
+    {
+        return Excel::download(new InventorySaleExport, 'inventory_sales.xlsx');
+    }
 
 }

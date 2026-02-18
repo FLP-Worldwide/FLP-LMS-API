@@ -1,9 +1,11 @@
 <?php
 namespace App\Http\Controllers\Inventory;
 
+use App\Exports\InventorySupplierExport;
 use App\Http\Controllers\Controller;
 use App\Models\InventorySupplier;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class InventorySupplierController extends Controller
 {
@@ -77,5 +79,14 @@ class InventorySupplierController extends Controller
             'status'  => 'success',
             'message' => 'Supplier deleted successfully.',
         ]);
+    }
+
+
+    public function export()
+    {
+        return Excel::download(
+            new InventorySupplierExport(),
+            'suppliers_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
+        );
     }
 }

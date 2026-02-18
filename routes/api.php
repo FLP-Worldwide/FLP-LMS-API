@@ -496,8 +496,9 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
 
             Route::get('inventory/item/export', [InventoryItemController::class, 'export']);
             Route::get('/inventory/category/export', [InventoryCategoryController::class, 'export']);
-            Route::get('/inventory/suppliers/export', [SupplierController::class, 'export']);
-
+            Route::get('/inventory/suppliers/export', [InventorySupplierController::class, 'export']);
+            Route::get('/inventory/purchase/export', [InventoryPurchaseController::class, 'export']);
+            Route::get('/inventory/sale/export', [InventorySaleController::class, 'export']);
 
         });
 
