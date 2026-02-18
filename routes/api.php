@@ -499,7 +499,9 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
             Route::get('/inventory/suppliers/export', [InventorySupplierController::class, 'export']);
             Route::get('/inventory/purchase/export', [InventoryPurchaseController::class, 'export']);
             Route::get('/inventory/sale/export', [InventorySaleController::class, 'export']);
-
+            Route::get('/payroll/monthly-template/export', [UserSalaryTemplateController::class, 'export']);
+            Route::get('/payroll/hourly-template/export', [UserSalaryTemplateController::class, 'hourlyexport']);
+            Route::get('/payroll/manage-salary/export', [UserSalaryTemplateController::class, 'manageSalaryExport']);
         });
 
 });

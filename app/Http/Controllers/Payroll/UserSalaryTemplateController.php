@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\Payroll;
 
+use App\Exports\SalaryTemplateExport;
+use App\Exports\UserSalaryTemplateExport;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\UserAttendance;
 use App\Models\UserSalaryTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 class UserSalaryTemplateController extends Controller
 {
@@ -152,6 +155,32 @@ public function salaryOverview(User $user)
             'status' => 'success',
             'data' => $mapping,
         ]);
+    }
+
+
+    public function export()
+    {
+        return Excel::download(
+            new SalaryTemplateExport('monthly'),
+            'monthly_salary_templates.xlsx'
+        );
+    }
+
+    public function hourlyexport()
+    {
+        return Excel::download(
+            new SalaryTemplateExport('hourly'),
+            'hourly_salary_templates.xlsx'
+        );
+    }
+
+    // manageSalaryExport
+    public function manageSalaryExport()
+    {
+        return Excel::download(
+            new UserSalaryTemplateExport,
+            'manage_salary_templates.xlsx'
+        );
     }
 
 }
