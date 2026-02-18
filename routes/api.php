@@ -45,6 +45,7 @@ use App\Http\Controllers\Lead\LeadClosingReasonController;
 use App\Http\Controllers\Lead\LeadSetup;
 use App\Http\Controllers\Lead\AreaController;
 use App\Http\Controllers\Lead\CustomFieldController;
+use App\Http\Controllers\Lead\InstituteController;
 use App\Http\Controllers\Lead\ReferredByController;
 use App\Http\Controllers\PayeeController;
 use App\Http\Controllers\PayerController;
@@ -90,6 +91,16 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::put('{id}', [LeadClosingReasonController::class, 'update']);
         Route::delete('{id}', [LeadClosingReasonController::class, 'destroy']);
     });
+
+
+
+    Route::prefix('lead-institutes')->group(function () {
+        Route::get('/template', [InstituteController::class, 'downloadTemplate']);
+        Route::get('/export', [InstituteController::class, 'exportAll']);
+        Route::post('/bulk-upload', [InstituteController::class, 'bulkUpload']);
+    });
+    Route::apiResource('lead-institutes', InstituteController::class);
+
 
     Route::prefix('areas')
     ->group(function () {

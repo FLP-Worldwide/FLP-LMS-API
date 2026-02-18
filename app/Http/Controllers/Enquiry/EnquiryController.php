@@ -24,6 +24,7 @@ class EnquiryController extends Controller
         $query = Enquiry::query()
             ->with([
                 'details:id,enquiry_id,email,gender,state,city,category,parent_name',
+                'leadSource:id,name',
                 'followUps' => function ($q) {
                     $q->latest()->limit(1);
                 }
