@@ -1,9 +1,11 @@
 <?php
 namespace App\Http\Controllers\Inventory;
 
+use App\Exports\InventoryCategoryExport;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryCategory;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class InventoryCategoryController extends Controller
 {
@@ -71,4 +73,16 @@ class InventoryCategoryController extends Controller
             'message' => 'Inventory category deleted successfully.',
         ]);
     }
+
+
+    public function export()
+    {
+        return Excel::download(
+            new InventoryCategoryExport(),
+            'inventory_categories_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
+        );
+    }
+
+
+
 }

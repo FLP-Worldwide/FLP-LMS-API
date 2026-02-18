@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Assets;
 
+use App\Exports\SupplierExport;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\Supplier;
 use App\Models\SupplierAssetItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 class SupplierController extends Controller
 {
@@ -208,6 +210,15 @@ class SupplierController extends Controller
             'status' => 'success',
             'data'   => $assets
         ]);
+    }
+
+
+    public function export()
+    {
+        return Excel::download(
+            new SupplierExport(),
+            'suppliers_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
+        );
     }
 
 }

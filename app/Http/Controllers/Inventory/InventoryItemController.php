@@ -1,9 +1,12 @@
 <?php
 namespace App\Http\Controllers\Inventory;
 
+use App\Exports\InventoryItemExport;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
+
 
 class InventoryItemController extends Controller
 {
@@ -86,5 +89,15 @@ class InventoryItemController extends Controller
             'status'  => 'success',
             'message' => 'Inventory item deleted successfully.',
         ]);
+    }
+
+    public function export(Request $request)
+    {
+        $categoryId = $request->category_id ?? null;
+
+        return Excel::download(
+            new InventoryItemExport($categoryId),
+            'inventory_items_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
+        );
     }
 }

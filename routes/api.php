@@ -494,6 +494,10 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
             Route::get('/students/export', [StudentExportController::class, 'export']);
             Route::get('/students/import/template', [StudentExportController::class, 'downloadTemplate']);
 
+            Route::get('inventory/item/export', [InventoryItemController::class, 'export']);
+            Route::get('/inventory/category/export', [InventoryCategoryController::class, 'export']);
+            Route::get('/inventory/suppliers/export', [SupplierController::class, 'export']);
+
 
         });
 
