@@ -2,16 +2,18 @@
 
 namespace App\Http\Controllers\Assets;
 
+use App\Exports\AssetItemsExport;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class AssetController extends Controller
 {
 
     public function index(Request $request)
     {
-        $query = Asset::query()
+        $query = Asset::with(['location:id,name', 'category:id,name'])
             ->where('is_active', 1);
 
         // 🔹 Single category
@@ -28,7 +30,7 @@ class AssetController extends Controller
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
                 $q->where('name', 'like', "%{$request->search}%")
-                  ->orWhere('code', 'like', "%{$request->search}%");
+                ->orWhere('code', 'like', "%{$request->search}%");
             });
         }
 
@@ -38,9 +40,29 @@ class AssetController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => $assets
+            'data' => $assets->map(function ($asset) {
+                return [
+                    'id' => $asset->id,
+                    'name' => $asset->name,
+                    'code' => $asset->code,
+                    'quantity' => $asset->quantity,
+                    'condition' => $asset->condition,
+                    'description' => $asset->description,
+
+                    'location' => [
+                        'id' => $asset->location?->id,
+                        'name' => $asset->location?->name,
+                    ],
+
+                    'category' => [
+                        'id' => $asset->category?->id,
+                        'name' => $asset->category?->name,
+                    ],
+                ];
+            }),
         ]);
     }
+
 
     public function store(Request $request)
     {
@@ -88,5 +110,17 @@ class AssetController extends Controller
         Asset::findOrFail($id)->delete();
         return response()->json(['status' => 'success']);
     }
+
+
+    public function exportItems()
+    {
+        return Excel::download(
+            new AssetItemsExport(),
+            'asset_items_report.xlsx'
+        );
+    }
+
+
+
 }
 

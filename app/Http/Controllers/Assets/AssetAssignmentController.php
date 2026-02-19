@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers\Assets;
 
+use App\Exports\AssetAssignmentExport;
 use App\Http\Controllers\Controller;
 use App\Models\AssetAssignment;
 use Illuminate\Http\Request;
-
+use Maatwebsite\Excel\Facades\Excel;
 
 class AssetAssignmentController extends Controller
 {
@@ -135,6 +136,15 @@ public function destroy($id)
         'status'  => 'success',
         'message' => 'Assignment deleted successfully'
     ]);
+}
+
+
+public function export(Request $request)
+{
+    return Excel::download(
+        new AssetAssignmentExport($request),
+        'asset_assignment_report.xlsx'
+    );
 }
 
 }

@@ -504,6 +504,14 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
             Route::get('/payroll/manage-salary/export', [UserSalaryTemplateController::class, 'manageSalaryExport']);
             Route::get('/finance/expenses/export', [ExpenseController::class, 'export']);
             Route::get('/finance/income/export', [IncomeController::class, 'export']);
+            Route::get('/assets/locations/export', [AssetLocationController::class, 'export']);
+            Route::get('assets/items/export', [AssetController::class, 'exportItems']);
+            Route::get('assets/categories/export', [AssetCategoryController::class, 'exportCategories']);
+            Route::get('suppliers/export', [SupplierController::class, 'export']);
+            Route::get('purchase-assets/export', [PurchaseController::class, 'export']);
+            Route::get('assets/assignments/export', [AssetAssignmentController::class, 'export']);
+
+
 
         });
 

@@ -212,7 +212,13 @@ class SupplierController extends Controller
         ]);
     }
 
-
+    public function export()
+    {
+        return Excel::download(
+            new SupplierExport(),
+            'suppliers_report.xlsx'
+        );
+    }
 
 
 }

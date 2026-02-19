@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Assets;
 
+use App\Exports\PurchaseReportExport;
 use App\Http\Controllers\Controller;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 class PurchaseController extends Controller
 {
@@ -266,4 +268,14 @@ class PurchaseController extends Controller
             ], 422);
         }
     }
+
+
+    public function export(Request $request)
+    {
+        return Excel::download(
+            new PurchaseReportExport($request),
+            'purchase_report.xlsx'
+        );
+    }
+
 }

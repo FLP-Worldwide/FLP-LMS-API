@@ -1,10 +1,12 @@
 <?php
 namespace App\Http\Controllers\Assets;
 
+use App\Exports\AssetLocationExport;
 use App\Http\Controllers\Controller;
 use App\Models\AssetLocation;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
 
 class AssetLocationController extends Controller
 {
@@ -82,5 +84,15 @@ class AssetLocationController extends Controller
 
         return response()->json(['status' => 'success']);
     }
+
+
+    public function export()
+    {
+        return Excel::download(
+            new AssetLocationExport(),
+            'asset_locations.xlsx'
+        );
+    }
+
 }
 

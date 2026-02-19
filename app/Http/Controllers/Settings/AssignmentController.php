@@ -30,7 +30,8 @@ class AssignmentController extends Controller
             'topic_id' => 'nullable|exists:topics,id',
             'sub_topic_id' => 'nullable|exists:topics,id',
 
-            'files.*' => 'file|max:153600', // 150MB
+            'file' => 'nullable|file|max:153600',
+
             'links' => 'array|max:5',
             'links.*.name' => 'required|string',
             'links.*.url' => 'required|url',
@@ -39,17 +40,18 @@ class AssignmentController extends Controller
         $assignment = Assignment::create($data);
 
         // Files
-        if ($request->hasFile('files')) {
-            foreach ($request->file('files') as $file) {
-                $path = $file->store('assignments', 'public');
+        if ($request->hasFile('file')) {
 
-                $assignment->resources()->create([
-                    'type' => 'file',
-                    'name' => $file->getClientOriginalName(),
-                    'file_path' => $path,
-                ]);
-            }
+            $file = $request->file('file');
+            $path = $file->store('assignments', 'public');
+
+            $assignment->resources()->create([
+                'type' => 'file',
+                'name' => $file->getClientOriginalName(),
+                'file_path' => $path,
+            ]);
         }
+
 
         // Links
         foreach ($request->links ?? [] as $link) {

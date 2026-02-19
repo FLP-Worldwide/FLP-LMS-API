@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Assets;
 
+use App\Exports\AssetCategoryExport;
 use App\Http\Controllers\Controller;
 use App\Models\AssetCategory;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class AssetCategoryController extends Controller
 {
@@ -44,6 +46,15 @@ class AssetCategoryController extends Controller
     {
         AssetCategory::findOrFail($id)->delete();
         return response()->json(['status' => 'success']);
+    }
+
+
+    public function exportCategories()
+    {
+        return Excel::download(
+            new AssetCategoryExport(),
+            'asset_category_report.xlsx'
+        );
     }
 }
 

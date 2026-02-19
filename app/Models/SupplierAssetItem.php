@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class SupplierAssetItem extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes,BelongsToInstitute;
     //
     protected $guarded  = ['id'];
     protected $hidden = ['created_at','updated_at','deleted_at'];
