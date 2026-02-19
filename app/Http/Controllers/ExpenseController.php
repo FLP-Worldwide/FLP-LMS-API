@@ -1,11 +1,14 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Exports\ExpenseReportExport;
 use App\Http\Controllers\Controller;
 use App\Models\Expense;
 use App\Models\FinanceAccount;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ExpenseController extends Controller
 {
@@ -60,11 +63,31 @@ class ExpenseController extends Controller
 
     public function index(Request $request)
     {
+
             $query = Expense::with([
-                'payee:id,name',
+                'payee:id,name,email,contact_no,address,vendor_type',
                 'account:id,account_type,account_name',
                 'items:id,expense_id,category,description,quantity,amount'
             ]);
+
+            $today = Carbon::today();
+
+            if ($request->filter === 'current_month') {
+                $query->whereBetween('payment_date', [
+                    $today->copy()->startOfMonth(),
+                    $today
+                ]);
+            }
+
+            if ($request->filter === 'till_date') {
+                $query->whereDate('payment_date', '<=', $today);
+            }
+
+            elseif ($request->from && $request->to) {
+                $query->whereBetween('payment_date', [$request->from, $request->to]);
+            } elseif ($request->payment_date) {
+                $query->whereDate('payment_date', $request->payment_date);
+            }
 
             // 🔹 Date filters
             if ($request->from && $request->to) {
@@ -104,18 +127,23 @@ class ExpenseController extends Controller
                         'id' => $expense->id,
                         'payment_date' => $expense->payment_date,
                         'payment_mode' => $expense->payment_mode,
+                        'transaction_id' => $expense->transaction_id, // ✅ appended
                         'total_amount' => $expense->total_amount,
                         'remark' => $expense->remark,
 
                         'payee' => [
-                            'id' => $expense->payee->id,
-                            'name' => $expense->payee->name,
+                            'id' => $expense->payee->id ?? null,
+                            'name' => $expense->payee->name ?? null,
+                            'email' => $expense->payee->email ?? null,      // ✅ appended
+                            'phone' => $expense->payee->phone ?? null,      // ✅ appended
+                            'address' => $expense->payee->address ?? null,  // ✅ appended
+                            'type' => $expense->payee->vendor_type ?? null,        // ✅ appended
                         ],
 
                         'account' => [
-                            'id' => $expense->account->id,
-                            'type' => $expense->account->account_type,
-                            'name' => $expense->account->account_name,
+                            'id' => $expense->account->id ?? null,
+                            'type' => $expense->account->account_type ?? null,
+                            'name' => $expense->account->account_name ?? null,
                         ],
 
                         'items' => $expense->items->map(function ($item) {
@@ -132,5 +160,14 @@ class ExpenseController extends Controller
             ]);
     }
 
+
+
+    public function export(Request $request)
+    {
+        return Excel::download(
+            new ExpenseReportExport($request),
+            'expense_report.xlsx'
+        );
+    }
 
 }

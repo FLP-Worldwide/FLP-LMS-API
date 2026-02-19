@@ -1,12 +1,14 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Exports\IncomeReportExport;
 use App\Http\Controllers\Controller;
 
 use App\Models\FinanceAccount;
 use App\Models\Income;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 class IncomeController extends Controller
 {
@@ -133,5 +135,16 @@ public function store(Request $request)
         'data' => $income->load('items', 'payer', 'account'),
     ], 201);
 }
+
+
+
+    public function export(Request $request)
+    {
+        return Excel::download(
+            new IncomeReportExport($request),
+            'income_report.xlsx'
+        );
+    }
+
 
 }

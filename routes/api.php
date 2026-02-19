@@ -502,6 +502,9 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
             Route::get('/payroll/monthly-template/export', [UserSalaryTemplateController::class, 'export']);
             Route::get('/payroll/hourly-template/export', [UserSalaryTemplateController::class, 'hourlyexport']);
             Route::get('/payroll/manage-salary/export', [UserSalaryTemplateController::class, 'manageSalaryExport']);
+            Route::get('/finance/expenses/export', [ExpenseController::class, 'export']);
+            Route::get('/finance/income/export', [IncomeController::class, 'export']);
+
         });
 
 });
