@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Academics;
 
+use App\Exports\AttendanceLast3DaysExport;
 use App\Http\Controllers\Controller;
 use App\Models\Teacher;
 use App\Models\StaffDetail;
@@ -9,6 +10,7 @@ use App\Models\UserAttendance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
 
 class TeacherAttendanceController extends Controller
 {
@@ -348,5 +350,13 @@ class TeacherAttendanceController extends Controller
         ]);
     }
 
+
+    public function exportLast3Days()
+    {
+        return Excel::download(
+            new AttendanceLast3DaysExport(),
+            'attendance_last_3_days.xlsx'
+        );
+    }
 
 }

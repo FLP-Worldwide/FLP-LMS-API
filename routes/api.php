@@ -52,6 +52,7 @@ use App\Http\Controllers\PayerController;
 use App\Http\Controllers\Payroll\UserSalaryTemplateController;
 use App\Http\Controllers\Reports\StudentExportController;
 use App\Http\Controllers\Settings\AssignmentController;
+use App\Http\Controllers\Settings\ContentSettingController;
 use App\Http\Controllers\Settings\LiveClassSettingController;
 use App\Http\Controllers\Settings\SalaryTemplateController;
 use App\Http\Controllers\Settings\StudyMaterialController;
@@ -285,6 +286,7 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
 
 
 
+
     Route::prefix('subjects')
     ->group(function () {
         Route::get('/', [SubjectController::class, 'index']);
@@ -489,6 +491,15 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
      });
 
 
+
+    // Route::post('settings/content', [ContentSettingController::class, 'save']);
+    // Route::get('settings/content', [ContentSettingController::class, 'get']);
+
+    Route::post('settings/content', [ContentSettingController::class, 'save']);
+    Route::get('settings/content/{key}', [ContentSettingController::class, 'get']);
+    Route::get('settings', [ContentSettingController::class, 'all']);
+
+
       Route::prefix('reports')
         ->group(function () {
             Route::get('/students/export', [StudentExportController::class, 'export']);
@@ -510,7 +521,7 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
             Route::get('suppliers/export', [SupplierController::class, 'export']);
             Route::get('purchase-assets/export', [PurchaseController::class, 'export']);
             Route::get('assets/assignments/export', [AssetAssignmentController::class, 'export']);
-
+            Route::get('attendance/export-last-3-days', [TeacherAttendanceController::class, 'exportLast3Days']);
 
 
         });
