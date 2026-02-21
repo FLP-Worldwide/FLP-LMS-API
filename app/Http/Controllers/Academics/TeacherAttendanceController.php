@@ -180,18 +180,20 @@ class TeacherAttendanceController extends Controller
     /**
      * 📝 Mark attendance (TEACHER + STAFF)
      */
-   public function store(Request $request)
+    public function store(Request $request)
     {
         $validated = $request->validate([
-            'date' => 'required|date|before_or_equal:today',
 
             'records' => 'required|array|min:1',
 
-            // ✅ Either teacher_id OR user_id (never both required)
+            'records.*.date' => 'required|date|before_or_equal:today',
+
+            // Either teacher_id OR user_id
             'records.*.teacher_id' => 'nullable|required_without:records.*.user_id|exists:teachers,id',
             'records.*.user_id'    => 'nullable|required_without:records.*.teacher_id|exists:users,id',
 
             'records.*.status' => 'required|in:P,A,LP,HP,L',
+            'records.*.remark' => 'nullable|string',
         ]);
 
         DB::transaction(function () use ($validated) {
@@ -200,14 +202,14 @@ class TeacherAttendanceController extends Controller
 
                 UserAttendance::updateOrCreate(
                     [
-                        'attendance_date' => $validated['date'],
-                        'teacher_id' => $row['teacher_id'] ?? null,
-                        'user_id'    => $row['user_id'] ?? null,
+                        'attendance_date' => $row['date'],   // ✅ now row date
+                        'teacher_id'      => $row['teacher_id'] ?? null,
+                        'user_id'         => $row['user_id'] ?? null,
                     ],
                     [
-                        'status' => $row['status'],
+                        'status'       => $row['status'],
                         'leave_status' => 'approved',
-                        'applied_on' => today()->toDateString(),
+                        'applied_on'   => now()->toDateString(),
                         'remark'       => $row['remark'] ?? 'Approved by Admin',
                     ]
                 );
@@ -216,7 +218,7 @@ class TeacherAttendanceController extends Controller
 
         return response()->json([
             'status'  => 'success',
-            'message' => 'Attendance updated successfully.',
+            'message' => 'Attendance saved successfully.',
         ]);
     }
 
