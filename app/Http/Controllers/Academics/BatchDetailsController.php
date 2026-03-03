@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Academics;
 use App\Http\Controllers\Controller;
 use App\Models\{
     Batch,
+    BatchStudent,
     BatchSubject,
     ClassRoutine,
     Exam,
@@ -26,25 +27,32 @@ class BatchDetailsController extends Controller
         $course = $batch->course;
         $class  = $course->classRoom;
 
-        /* ===================== STUDENTS ===================== */
-        $students = Student::with('details')
-            ->where('class', $class->id)
+        /* ===================== STUDENTS (ONLY ASSIGNED IN BATCH) ===================== */
+        $students = $batch->students()
+            ->with('details')
+            ->wherePivot('is_active', true)
+            ->wherePivot('assigned_date', '<=', $today)
             ->get();
 
+        /* ---------- Gender Stats ---------- */
         $genderStats = ['male'=>0,'female'=>0,'other'=>0,'na'=>0];
 
         foreach ($students as $s) {
-            $g = $s->details?->gender ?? 'na';
-            $genderStats[$g]++;
+            $gender = $s->details?->gender ?? 'na';
+            $genderStats[$gender] = ($genderStats[$gender] ?? 0) + 1;
         }
 
+        /* ---------- Expired Students ---------- */
         $expiredStudents = $students
             ->whereIn('status', ['left','passed','inactive'])
-            ->map(fn ($s) => [
-                'id' => $s->id,
-                'name' => $s->first_name.' '.$s->last_name,
-                'dob' => $s->details?->dob,
-            ])
+            ->map(function ($s) {
+                return [
+                    'id' => $s->id,
+                    'name' => $s->first_name.' '.$s->last_name,
+                    'dob' => $s->details?->dob,
+                    'assigned_date' => $s->pivot->assigned_date,
+                ];
+            })
             ->values();
 
         /* ===================== EXAMS ===================== */
@@ -70,14 +78,14 @@ class BatchDetailsController extends Controller
                     'status' => $status,
                     'subjects' => $exam->subjects->map(fn ($s) => [
                         'subject' => $s->subject?->name,
-                        'marks' => $s->marks,
-                        'topic' => $s->topic?->name,
-                        'room' => $s->room_no,
+                        'marks'   => $s->marks,
+                        'topic'   => $s->topic?->name,
+                        'room'    => $s->room_no,
                     ]),
                 ];
             });
 
-        /* ===================== MONTHLY DATE-WISE SCHEDULE ===================== */
+        /* ===================== WEEKLY SCHEDULE ===================== */
 
         $batchSubjects = BatchSubject::with(['subject','teacher','extraTeacher'])
             ->where('batch_id', $batch->id)
@@ -90,18 +98,16 @@ class BatchDetailsController extends Controller
             ->where('is_active', true)
             ->get();
 
-    $weekStart = now()->startOfWeek(); // Monday
-    $weekEnd   = now()->endOfWeek();   // Sunday
+        $weekStart = now()->startOfWeek();
+        $weekEnd   = now()->endOfWeek();
 
-    // Ensure week range stays inside batch duration
-    $start = Carbon::parse($batch->start_date)->greaterThan($weekStart)
-        ? Carbon::parse($batch->start_date)
-        : $weekStart;
+        $start = Carbon::parse($batch->start_date)->greaterThan($weekStart)
+            ? Carbon::parse($batch->start_date)
+            : $weekStart;
 
-    $end = Carbon::parse($batch->end_date)->lessThan($weekEnd)
-        ? Carbon::parse($batch->end_date)
-        : $weekEnd;
-
+        $end = Carbon::parse($batch->end_date)->lessThan($weekEnd)
+            ? Carbon::parse($batch->end_date)
+            : $weekEnd;
 
         $schedule = [];
 
@@ -125,7 +131,7 @@ class BatchDetailsController extends Controller
                     $status = 'UPCOMING';
                 }
 
-                $bs = $batchSubjects[$routine->subject_id];
+                $bs = $batchSubjects[$routine->subject_id] ?? null;
 
                 $schedule[] = [
                     'date'        => $date->toDateString(),
@@ -133,14 +139,13 @@ class BatchDetailsController extends Controller
                     'batch'       => $batch->name,
                     'subject'     => $routine->subject?->name,
                     'topic'       => null,
-                    'teacher'     => $bs->teacher?->name,
+                    'teacher'     => $bs?->teacher?->name,
                     'start_time'  => Carbon::parse($routine->start_time)->format('H:i'),
                     'end_time'    => Carbon::parse($routine->end_time)->format('H:i'),
                     'status'      => $status,
                 ];
             }
         }
-
 
         /* ===================== RESPONSE ===================== */
         return response()->json([
@@ -172,8 +177,91 @@ class BatchDetailsController extends Controller
 
                 'exams' => $exams,
 
-                'monthly_schedule' => $schedule,
+                'weekly_schedule' => $schedule,
             ]
         ]);
     }
+
+
+    public function batchStudents($batchId)
+    {
+        $batch = Batch::with([
+            'students.details'
+        ])->findOrFail($batchId);
+
+        $students = $batch->students->map(function ($student) {
+
+            return [
+                'id' => $student->id,
+                'name' => $student->first_name.' '.$student->last_name,
+                'status' => $student->status,
+                'assigned_date' => $student->pivot->assigned_date,
+                'batch_status' => $student->pivot->is_active,
+            ];
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $students
+        ]);
+    }
+    public function updateAssignedDate(Request $request, $batchId, $studentId)
+    {
+        $request->validate([
+            'assigned_date' => 'required|date'
+        ]);
+
+        $batchStudent = BatchStudent::where('batch_id', $batchId)
+            ->where('student_id', $studentId)
+            ->firstOrFail();
+
+        $batchStudent->update([
+            'assigned_date' => $request->assigned_date
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Assigned date updated successfully'
+        ]);
+    }
+
+    public function assignStudent(Request $request, $batchId)
+    {
+        $request->validate([
+            'student_id' => 'required|exists:students,id',
+            'assigned_date' => 'nullable|date'
+        ]);
+
+        $batch = Batch::findOrFail($batchId);
+        $student = Student::findOrFail($request->student_id);
+
+        // 🔥 Smart logic
+        if ($request->assigned_date) {
+            $assignedDate = $request->assigned_date;
+        } else {
+            if ($student->admission_date <= $batch->start_date) {
+                $assignedDate = $batch->start_date;
+            } else {
+                $assignedDate = $student->admission_date;
+            }
+        }
+
+        BatchStudent::updateOrCreate(
+            [
+                'batch_id' => $batch->id,
+                'student_id' => $student->id,
+            ],
+            [
+                'assigned_date' => $assignedDate,
+                'is_active' => true,
+            ]
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Student assigned successfully',
+            'assigned_date' => $assignedDate
+        ]);
+    }
+
 }

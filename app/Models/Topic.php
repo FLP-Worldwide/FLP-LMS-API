@@ -26,5 +26,12 @@ class Topic extends Model
     {
         return $this->belongsTo(Subject::class);
     }
+    public function subTopics()
+    {
+        return $this->hasMany(SubTopic::class);
+    }
+
+
+
 
 }

@@ -186,4 +186,17 @@ class BatchController extends Controller
             'message' => 'Batch deleted successfully'
         ]);
     }
+
+    public function deletedBatches()
+    {
+        $batches = Batch::onlyTrashed()
+            ->with(['course:id,name'])
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $batches
+        ]);
+    }
 }

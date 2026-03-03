@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Academics\BatchAnnouncementController;
 use App\Http\Controllers\Academics\BatchController;
 use App\Http\Controllers\Academics\BatchDetailsController;
 use App\Http\Controllers\Academics\ClassController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\Academics\RoomController;
 use App\Http\Controllers\Academics\SubjectController;
 use App\Http\Controllers\Academics\TeacherAttendanceController;
 use App\Http\Controllers\Academics\TeacherController;
+use App\Http\Controllers\Academics\TopicController;
 use App\Http\Controllers\AcademicYearController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
@@ -49,6 +51,7 @@ use App\Http\Controllers\Lead\InstituteController;
 use App\Http\Controllers\Lead\ReferredByController;
 use App\Http\Controllers\PayeeController;
 use App\Http\Controllers\PayerController;
+use App\Http\Controllers\Payroll\PayrollController;
 use App\Http\Controllers\Payroll\UserSalaryTemplateController;
 use App\Http\Controllers\Reports\StudentExportController;
 use App\Http\Controllers\Settings\AssignmentController;
@@ -274,6 +277,10 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
         Route::get('assign-salary-template/{user_id}', [UserSalaryTemplateController::class, 'show']);
 
         Route::get('salary-overview/{user}',[UserSalaryTemplateController::class, 'salaryOverview']);
+
+        Route::post('/salary-payment', [PayrollController::class, 'saveSalaryPayment']);
+        Route::post('/calculate-salary', [PayrollController::class, 'calculateSalary']);
+        Route::get('/salary-history', [PayrollController::class, 'salaryHistory']);
     });
 
 
@@ -483,13 +490,26 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
     Route::apiResource('asset-assignments', AssetAssignmentController::class);
 
     Route::apiResource('courses', CourseController::class);
+    Route::get('batches/deleted', [BatchController::class, 'deletedBatches']);
     Route::apiResource('batches', BatchController::class);
 
-     Route::prefix('batch')->group(function(){
-    // {batchId}/details?
+    Route::prefix('batch')->group(function(){
+
         Route::get('{batchId}/details', [BatchDetailsController::class, 'batchDetails']);
      });
 
+
+    Route::prefix('batches/{id}/announcements')->group(function () {
+        Route::get('/', [BatchAnnouncementController::class, 'index']);
+        Route::post('/', [BatchAnnouncementController::class, 'store']);
+        Route::put('/{announcementId}', [BatchAnnouncementController::class, 'update']);
+        Route::delete('/{announcementId}', [BatchAnnouncementController::class, 'destroy']);
+    });
+
+
+    Route::get('/batches/{id}/students', [BatchDetailsController::class, 'batchStudents']);
+    Route::post('/batches/{id}/assign-student', [BatchDetailsController::class, 'assignStudent']);
+    Route::put('/batches/{batchId}/students/{studentId}/update-date', [BatchDetailsController::class, 'updateAssignedDate']);
 
 
     // Route::post('settings/content', [ContentSettingController::class, 'save']);
@@ -522,6 +542,8 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
             Route::get('purchase-assets/export', [PurchaseController::class, 'export']);
             Route::get('assets/assignments/export', [AssetAssignmentController::class, 'export']);
             Route::get('attendance/export-last-3-days', [TeacherAttendanceController::class, 'exportLast3Days']);
+            Route::get('/topics/bulk-template', [TopicController::class, 'downloadTemplate']);
+            Route::post('/topics/bulk-upload', [TopicController::class, 'bulkImport']);
 
 
         });

@@ -89,6 +89,12 @@ class Student extends Model
         return $this->hasMany(ExamAttendance::class);
     }
 
+    public function batches()
+    {
+        return $this->belongsToMany(Batch::class, 'batch_students')
+            ->withPivot('assigned_date','is_active')
+            ->withTimestamps();
+    }
 
 
 }

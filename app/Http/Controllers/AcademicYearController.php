@@ -24,8 +24,11 @@ class AcademicYearController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'start_year' => 'required|digits:4',
-            'is_active'  => 'nullable|boolean'
+            'start_year'  => 'required|digits:4',
+            'start_date'  => 'required|date',
+            'end_date'    => 'required|date|after:start_date',
+            'description' => 'nullable|string',
+            'is_active'   => 'nullable|boolean'
         ]);
 
         $startYear = (int) $validated['start_year'];
@@ -44,16 +47,19 @@ class AcademicYearController extends Controller
 
         try {
 
-            // Only one active year
             if (!empty($validated['is_active'])) {
-                AcademicYear::where('is_active', true)->update(['is_active' => false]);
+                AcademicYear::where('is_active', true)
+                    ->update(['is_active' => false]);
             }
 
             $year = AcademicYear::create([
-                'name' => $name,
-                'start_year' => $startYear,
-                'end_year' => $endYear,
-                'is_active' => $validated['is_active'] ?? false,
+                'name'        => $name,
+                'start_year'  => $startYear,
+                'end_year'    => $endYear,
+                'start_date'  => $validated['start_date'],
+                'end_date'    => $validated['end_date'],
+                'description' => $validated['description'] ?? null,
+                'is_active'   => $validated['is_active'] ?? false,
             ]);
 
             DB::commit();
@@ -98,20 +104,22 @@ class AcademicYearController extends Controller
         $year = AcademicYear::findOrFail($id);
 
         $validated = $request->validate([
-            'is_active' => 'required|boolean'
+            'start_date'  => 'nullable|date',
+            'end_date'    => 'nullable|date|after:start_date',
+            'description' => 'nullable|string',
+            'is_active'   => 'nullable|boolean'
         ]);
 
         DB::beginTransaction();
 
         try {
 
-            if ($validated['is_active']) {
-                AcademicYear::where('is_active', true)->update(['is_active' => false]);
+            if (!empty($validated['is_active'])) {
+                AcademicYear::where('is_active', true)
+                    ->update(['is_active' => false]);
             }
 
-            $year->update([
-                'is_active' => $validated['is_active']
-            ]);
+            $year->update($validated);
 
             DB::commit();
 

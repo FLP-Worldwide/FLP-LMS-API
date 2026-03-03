@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Academics;
 
+use App\Exports\TopicTemplateExport;
 use App\Http\Controllers\Controller;
+use App\Imports\TopicImport;
 use App\Models\Topic;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class TopicController extends Controller
 {
@@ -126,4 +129,36 @@ class TopicController extends Controller
             'message' => 'Topic deleted successfully',
         ]);
     }
+
+
+    public function downloadTemplate(Request $request)
+    {
+        $validated = $request->validate([
+            'class_id'   => 'required|exists:class_rooms,id',
+            'subject_id' => 'required|exists:subjects,id',
+        ]);
+
+        return Excel::download(
+            new TopicTemplateExport(
+                $validated['class_id'],
+                $validated['subject_id']
+            ),
+            'topic_template.xlsx'
+        );
+    }
+    public function bulkImport(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls'
+        ]);
+
+        Excel::import(new TopicImport, $request->file('file'));
+
+        return response()->json([
+            'message' => 'Topics imported successfully'
+        ]);
+    }
+
+
+
 }

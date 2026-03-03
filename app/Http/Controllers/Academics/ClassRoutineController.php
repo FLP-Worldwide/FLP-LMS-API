@@ -326,215 +326,409 @@ class ClassRoutineController extends Controller
             'data'    => $routine->fresh('days'),
         ]);
     }
-public function scheduleByDate(Request $request)
-{
-    $validated = $request->validate([
-        'course_id' => 'required|exists:courses,id',
-        'batch_id'  => 'required|exists:batches,id',
-        'date'      => 'nullable|date',
-    ]);
+    
+    public function scheduleByDate(Request $request)
+    {
+        $validated = $request->validate([
+            'course_id'  => 'nullable|exists:courses,id',
+            'batch_id'   => 'nullable|exists:batches,id',
+            'teacher_id' => 'nullable|exists:users,id',
+            'date'       => 'nullable|date',
+            'week_start' => 'nullable|date',
+            'week_end'   => 'nullable|date',
+            'month'      => 'nullable|integer|min:1|max:12',
+            'year'       => 'nullable|integer|min:2000',
+        ]);
 
-    $selectedDate = $validated['date'] ?? null;
-    $today = now()->toDateString();
-    $currentTime = now()->format('H:i:s');
-
-    $weekStart = now()->startOfWeek();
-    $weekEnd   = now()->endOfWeek();
-
-    $routines = ClassRoutine::with([
-        'days',
-        'exceptions',
-        'course:id,name',
-        'batch:id,name',
-        'classRoom:id,name',
-        'subject:id,name,short_code',
-        'teacher:id,first_name,last_name',
-        'room:id,name,code'
-    ])
-    ->where('course_id', $validated['course_id'])
-    ->where('batch_id', $validated['batch_id'])
-    ->get();
-
-    $result = collect();
-
-    foreach ($routines as $routine) {
+        $today = now()->toDateString();
+        $currentTime = now()->format('H:i:s');
 
         /*
         =====================================
-        DETERMINE DATES TO CHECK
+        DETERMINE DATE RANGE
         =====================================
         */
 
-        $dates = [];
+        if (!empty($validated['date'])) {
+            $dates = [$validated['date']];
+        }
 
-        if ($selectedDate) {
-            $dates = [$selectedDate];
-        } else {
-            $cursor = $weekStart->copy();
-            while ($cursor <= $weekEnd) {
-                $dates[] = $cursor->format('Y-m-d');
-                $cursor->addDay();
+        elseif (!empty($validated['week_start']) && !empty($validated['week_end'])) {
+
+            $start = \Carbon\Carbon::parse($validated['week_start']);
+            $end   = \Carbon\Carbon::parse($validated['week_end']);
+
+            $dates = [];
+            while ($start <= $end) {
+                $dates[] = $start->format('Y-m-d');
+                $start->addDay();
             }
         }
 
-        foreach ($dates as $date) {
+        elseif (!empty($validated['month']) && !empty($validated['year'])) {
 
-            /*
-            =====================================
-            CHECK IF ROUTINE SHOULD RUN ON THIS DATE
-            =====================================
-            */
+            $start = \Carbon\Carbon::create(
+                $validated['year'],
+                $validated['month'],
+                1
+            )->startOfMonth();
 
-            $shouldRun = false;
+            $end = $start->copy()->endOfMonth();
 
-            if ($routine->repeat_type === 'Does Not Repeat') {
-                $shouldRun = $routine->base_date == $date;
+            $dates = [];
+            while ($start <= $end) {
+                $dates[] = $start->format('Y-m-d');
+                $start->addDay();
             }
+        }
 
-            elseif ($routine->repeat_type === 'Weekly') {
-                $dayName = \Carbon\Carbon::parse($date)->format('l');
-                $days = $routine->days->pluck('day')->toArray();
+        else {
+            // Default current week
+            $start = now()->startOfWeek();
+            $end   = now()->endOfWeek();
 
-                if (in_array($dayName, $days) && $date >= $routine->base_date) {
-                    $shouldRun = true;
+            $dates = [];
+            while ($start <= $end) {
+                $dates[] = $start->format('Y-m-d');
+                $start->addDay();
+            }
+        }
+
+        /*
+        =====================================
+        QUERY ROUTINES
+        =====================================
+        */
+
+        $query = ClassRoutine::with([
+            'days',
+            'exceptions',
+            'course:id,name',
+            'batch:id,name',
+            'classRoom:id,name',
+            'subject:id,name,short_code',
+            'teacher:id,first_name,last_name',
+            'room:id,name,code'
+        ]);
+
+        if (!empty($validated['course_id'])) {
+            $query->where('course_id', $validated['course_id']);
+        }
+
+        if (!empty($validated['batch_id'])) {
+            $query->where('batch_id', $validated['batch_id']);
+        }
+
+        if (!empty($validated['teacher_id'])) {
+            $query->where('teacher_id', $validated['teacher_id']);
+        }
+
+        $routines = $query->get();
+
+        $result = collect();
+
+        foreach ($routines as $routine) {
+
+            foreach ($dates as $date) {
+
+                $shouldRun = false;
+
+                /*
+                =====================================
+                REPEAT LOGIC
+                =====================================
+                */
+
+                if ($routine->repeat_type === 'Does Not Repeat') {
+                    $shouldRun = $routine->base_date == $date;
                 }
-            }
 
-            elseif ($routine->repeat_type === 'Daily') {
-                if ($date >= $routine->base_date) {
-                    $shouldRun = true;
+                elseif ($routine->repeat_type === 'Daily') {
+
+                    $dayName = \Carbon\Carbon::parse($date)->format('l');
+
+                    // ❌ EXCLUDE SUNDAY
+                    if ($dayName !== 'Sunday' && $date >= $routine->base_date) {
+                        $shouldRun = true;
+                    }
                 }
-            }
 
-            elseif ($routine->repeat_type === 'Select Dates') {
-                $specificDates = $routine->days
-                    ->whereNotNull('specific_date')
-                    ->pluck('specific_date')
-                    ->map(fn($d) => \Carbon\Carbon::parse($d)->format('Y-m-d'))
-                    ->toArray();
+                elseif ($routine->repeat_type === 'Weekly') {
 
-                $shouldRun = in_array($date, $specificDates);
-            }
+                    $dayName = \Carbon\Carbon::parse($date)->format('l');
+                    $days = $routine->days->pluck('day')->toArray();
 
-            if (!$shouldRun) {
-                continue;
-            }
+                    if (in_array($dayName, $days) && $date >= $routine->base_date) {
+                        $shouldRun = true;
+                    }
+                }
 
-            /*
-            =====================================
-            CHECK EXCEPTIONS
-            =====================================
-            */
+                elseif ($routine->repeat_type === 'Select Dates') {
 
-            $exception = $routine->exceptions
-                ->first(function ($ex) use ($date) {
-                    return $ex->exception_date == $date
-                        || $ex->new_date == $date;
-                });
+                    $specificDates = $routine->days
+                        ->whereNotNull('specific_date')
+                        ->pluck('specific_date')
+                        ->map(fn($d) => \Carbon\Carbon::parse($d)->format('Y-m-d'))
+                        ->toArray();
 
-            // 🔴 CANCELLED
-            if ($exception && $exception->type === 'cancelled'
-                && $exception->exception_date == $date) {
+                    $shouldRun = in_array($date, $specificDates);
+                }
+
+                if (!$shouldRun) {
+                    continue;
+                }
+
+                /*
+                =====================================
+                STATUS LOGIC
+                =====================================
+                */
+
+                $status = 'upcoming';
+
+                if ($date < $today) {
+                    $status = 'completed';
+                }
+
+                if ($date == $today) {
+                    if ($currentTime >= $routine->start_time
+                        && $currentTime <= $routine->end_time) {
+                        $status = 'ongoing';
+                    }
+
+                    if ($currentTime > $routine->end_time) {
+                        $status = 'completed';
+                    }
+                }
 
                 $result->push($this->formatRoutineResponse(
                     $routine,
                     $date,
-                    null,
-                    null,
-                    'cancelled'
+                    $routine->start_time,
+                    $routine->end_time,
+                    $status
                 ));
+            }
+        }
 
-                continue;
+        return response()->json([
+            'status' => 'success',
+            'data' => $result->sortBy([
+                ['date', 'asc'],
+                ['start_time', 'asc']
+            ])->values()
+        ]);
+    }
+
+    public function listClassAttendance(Request $request)
+    {
+        $today = now()->toDateString();
+        $currentTime = now()->format('H:i:s');
+        $dayName = now()->format('l');
+
+        $routines = ClassRoutine::with([
+            'days',
+            'exceptions',
+            'course:id,name',
+            'batch:id,name',
+            'classRoom:id,name',
+            'subject:id,name,short_code',
+            'teacher:id,first_name,last_name',
+        ])->get();
+
+        $result = collect();
+
+        foreach ($routines as $routine) {
+
+            $show = false;
+            $finalStart = $routine->start_time;
+            $finalEnd   = $routine->end_time;
+
+            /*
+            =====================================
+            CHECK IF CLASS IS SCHEDULED TODAY
+            =====================================
+            */
+
+            if ($routine->repeat_type === 'Does Not Repeat') {
+                $show = $routine->base_date == $today;
             }
 
-            // 🔁 RESCHEDULED
-            if ($exception && $exception->type === 'rescheduled') {
+            elseif ($routine->repeat_type === 'Weekly') {
 
-                // If old date → skip
-                if ($exception->exception_date == $date) {
+                $days = $routine->days
+                    ->whereNull('specific_date')
+                    ->pluck('day')
+                    ->toArray();
+
+                if (in_array($dayName, $days) && $today >= $routine->base_date) {
+                    $show = true;
+                }
+            }
+
+            elseif ($routine->repeat_type === 'Daily') {
+
+                if ($today >= $routine->base_date) {
+                    $show = true;
+                }
+            }
+
+            elseif ($routine->repeat_type === 'Select Dates') {
+
+                $dates = $routine->days
+                    ->whereNotNull('specific_date')
+                    ->pluck('specific_date')
+                    ->map(fn($d) => date('Y-m-d', strtotime($d)))
+                    ->toArray();
+
+                $show = in_array($today, $dates);
+            }
+
+            if (!$show) continue;
+
+            /*
+            =====================================
+            CHECK EXCEPTION (Cancel / Reschedule)
+            =====================================
+            */
+
+            $exception = $routine->exceptions
+                ->where('exception_date', $today)
+                ->first();
+
+            if ($exception) {
+
+                // 🔴 Cancelled
+                if ($exception->type === 'cancelled') {
+
+                    $result->push([
+                        'routine_id' => $routine->id,
+                        'course' => $routine->course,
+                        'batch'  => $routine->batch,
+                        'class'  => $routine->classRoom,
+                        'subject'=> $routine->subject,
+                        'teacher'=> $routine->teacher,
+                        'start_time' => null,
+                        'end_time'   => null,
+                        'class_status' => 'cancelled',
+                        'attendance_status' => 'not_applicable',
+                        'total_students' => 0,
+                        'attendance_marked' => 0,
+                    ]);
+
                     continue;
                 }
 
-                // If new date → show rescheduled
-                if ($exception->new_date == $date) {
+                // 🔁 Rescheduled
+                if ($exception->type === 'rescheduled') {
 
-                    $result->push($this->formatRoutineResponse(
-                        $routine,
-                        $date,
-                        $exception->new_start_time ?? $routine->start_time,
-                        $exception->new_end_time ?? $routine->end_time,
-                        'rescheduled'
-                    ));
+                    if ($exception->new_date != $today) {
+                        continue; // old date should not show
+                    }
 
-                    continue;
+                    $finalStart = $exception->new_start_time ?? $routine->start_time;
+                    $finalEnd   = $exception->new_end_time ?? $routine->end_time;
                 }
             }
 
             /*
             =====================================
-            NORMAL STATUS
+            ATTENDANCE CHECK (FIXED)
             =====================================
             */
 
-            $status = 'upcoming';
+            $totalStudents = Student::where('class', $routine->class_id)
+                ->whereNull('deleted_at')
+                ->count();
 
-            if ($date < $today) {
-                $status = 'completed';
+            $markedCount = StudentAttendance::where('attendance_date', $today)
+                ->where('class_routine_id', $routine->id) // ✅ FIXED
+                ->count();
+
+            $attendanceStatus = 'not_marked';
+
+            if ($markedCount > 0 && $markedCount < $totalStudents) {
+                $attendanceStatus = 'partial';
             }
 
-            if ($date == $today) {
-                if ($currentTime >= $routine->start_time
-                    && $currentTime <= $routine->end_time) {
-                    $status = 'ongoing';
-                }
-
-                if ($currentTime > $routine->end_time) {
-                    $status = 'completed';
-                }
+            if ($markedCount == $totalStudents && $totalStudents > 0) {
+                $attendanceStatus = 'marked';
             }
 
-            $result->push($this->formatRoutineResponse(
-                $routine,
-                $date,
-                $routine->start_time,
-                $routine->end_time,
-                $status
-            ));
+            /*
+            =====================================
+            CLASS TIME STATUS
+            =====================================
+            */
+
+            $classStatus = 'upcoming';
+
+            if ($currentTime >= $finalStart && $currentTime <= $finalEnd) {
+                $classStatus = 'ongoing';
+            }
+
+            if ($currentTime > $finalEnd) {
+                $classStatus = 'completed';
+            }
+
+            /*
+            =====================================
+            PUSH RESULT
+            =====================================
+            */
+
+            $result->push([
+                'routine_id' => $routine->id,
+
+                'course' => $routine->course,
+                'batch'  => $routine->batch,
+                'class'  => $routine->classRoom,
+                'subject'=> $routine->subject,
+                'teacher'=> $routine->teacher,
+
+                'repeat_type' => $routine->repeat_type, // ✅ Added
+                'class_type'  => $routine->class_type,  // ✅ Added
+
+                'start_time' => date('h:i A', strtotime($finalStart)),
+                'end_time'   => date('h:i A', strtotime($finalEnd)),
+
+                'class_status' => $classStatus,
+                'attendance_status' => $attendanceStatus,
+                'total_students' => $totalStudents,
+                'attendance_marked' => $markedCount,
+            ]);
         }
+
+        return response()->json([
+            'status' => 'success',
+            'date'   => $today,
+            'data'   => $result->sortBy('start_time')->values(),
+        ]);
     }
 
-    return response()->json([
-        'status' => 'success',
-        'data'   => $result->sortBy([
-            ['date', 'asc'],
-            ['start_time', 'asc']
-        ])->values(),
-    ]);
-}
 
-public function listClassAttendance(Request $request)
-{
-    $today = now()->toDateString();
-    $currentTime = now()->format('H:i:s');
-    $dayName = now()->format('l');
 
-    $routines = ClassRoutine::with([
-        'days',
-        'exceptions',
-        'course:id,name',
-        'batch:id,name',
-        'classRoom:id,name',
-        'subject:id,name,short_code',
-        'teacher:id,first_name,last_name',
-    ])->get();
 
-    $result = collect();
+    public function todayClassesAttendance(Request $request)
+    {
+        $validated = $request->validate([
+            'routine_id' => 'required|exists:class_routines,id',
+        ]);
 
-    foreach ($routines as $routine) {
+        $today = now()->toDateString();
+        $currentTime = now()->format('H:i:s');
 
+        $routine = ClassRoutine::with([
+            'days',
+            'course:id,name',
+            'batch:id,name',
+            'classRoom:id,name',
+            'subject:id,name,short_code',
+            'teacher:id,first_name,last_name',
+        ])->findOrFail($validated['routine_id']);
+
+        $dayName = now()->format('l');
         $show = false;
-        $finalStart = $routine->start_time;
-        $finalEnd   = $routine->end_time;
 
         /*
         =====================================
@@ -542,10 +736,17 @@ public function listClassAttendance(Request $request)
         =====================================
         */
 
+        // 1️⃣ Does Not Repeat
         if ($routine->repeat_type === 'Does Not Repeat') {
             $show = $routine->base_date == $today;
         }
 
+        // 2️⃣ Daily  🔥 FIXED
+        elseif ($routine->repeat_type === 'Daily') {
+            $show = $today >= $routine->base_date;
+        }
+
+        // 3️⃣ Weekly
         elseif ($routine->repeat_type === 'Weekly') {
 
             $days = $routine->days
@@ -558,13 +759,7 @@ public function listClassAttendance(Request $request)
             }
         }
 
-        elseif ($routine->repeat_type === 'Daily') {
-
-            if ($today >= $routine->base_date) {
-                $show = true;
-            }
-        }
-
+        // 4️⃣ Select Dates
         elseif ($routine->repeat_type === 'Select Dates') {
 
             $dates = $routine->days
@@ -576,66 +771,45 @@ public function listClassAttendance(Request $request)
             $show = in_array($today, $dates);
         }
 
-        if (!$show) continue;
-
-        /*
-        =====================================
-        CHECK EXCEPTION (Cancel / Reschedule)
-        =====================================
-        */
-
-        $exception = $routine->exceptions
-            ->where('exception_date', $today)
-            ->first();
-
-        if ($exception) {
-
-            // 🔴 Cancelled
-            if ($exception->type === 'cancelled') {
-
-                $result->push([
-                    'routine_id' => $routine->id,
-                    'course' => $routine->course,
-                    'batch'  => $routine->batch,
-                    'class'  => $routine->classRoom,
-                    'subject'=> $routine->subject,
-                    'teacher'=> $routine->teacher,
-                    'start_time' => null,
-                    'end_time'   => null,
-                    'class_status' => 'cancelled',
-                    'attendance_status' => 'not_applicable',
-                    'total_students' => 0,
-                    'attendance_marked' => 0,
-                ]);
-
-                continue;
-            }
-
-            // 🔁 Rescheduled
-            if ($exception->type === 'rescheduled') {
-
-                if ($exception->new_date != $today) {
-                    continue; // old date should not show
-                }
-
-                $finalStart = $exception->new_start_time ?? $routine->start_time;
-                $finalEnd   = $exception->new_end_time ?? $routine->end_time;
-            }
+        if (!$show) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'No class scheduled today for this routine.',
+                'data' => null,
+            ]);
         }
 
         /*
         =====================================
-        ATTENDANCE CHECK (FIXED)
+        GET STUDENTS FROM BATCH (FIXED)
         =====================================
         */
 
-        $totalStudents = Student::where('class', $routine->class_id)
-            ->whereNull('deleted_at')
-            ->count();
+        $students = $routine->batch
+            ->students()
+            ->wherePivot('is_active', true)
+            ->wherePivot('assigned_date', '<=', $today)
+            ->get();
 
-        $markedCount = StudentAttendance::where('attendance_date', $today)
-            ->where('class_routine_id', $routine->id) // ✅ FIXED
-            ->count();
+        $totalStudents = $students->count();
+
+        /*
+        =====================================
+        GET TODAY ATTENDANCE
+        =====================================
+        */
+
+        $attendances = StudentAttendance::where('attendance_date', $today)
+            ->where('class_routine_id', $routine->id)
+            ->get();
+
+        $markedCount = $attendances->count();
+
+        /*
+        =====================================
+        OVERALL ATTENDANCE STATUS
+        =====================================
+        */
 
         $attendanceStatus = 'not_marked';
 
@@ -649,249 +823,61 @@ public function listClassAttendance(Request $request)
 
         /*
         =====================================
-        CLASS TIME STATUS
+        CLASS STATUS
         =====================================
         */
 
         $classStatus = 'upcoming';
 
-        if ($currentTime >= $finalStart && $currentTime <= $finalEnd) {
+        if ($currentTime >= $routine->start_time && $currentTime <= $routine->end_time) {
             $classStatus = 'ongoing';
         }
 
-        if ($currentTime > $finalEnd) {
+        if ($currentTime > $routine->end_time) {
             $classStatus = 'completed';
         }
 
         /*
         =====================================
-        PUSH RESULT
+        STUDENT LIST
         =====================================
         */
 
-        $result->push([
-            'routine_id' => $routine->id,
+        $studentList = $students->map(function ($student) use ($attendances) {
 
-            'course' => $routine->course,
-            'batch'  => $routine->batch,
-            'class'  => $routine->classRoom,
-            'subject'=> $routine->subject,
-            'teacher'=> $routine->teacher,
+            $attendance = $attendances
+                ->where('student_id', $student->id)
+                ->first();
 
-            'repeat_type' => $routine->repeat_type, // ✅ Added
-            'class_type'  => $routine->class_type,  // ✅ Added
+            return [
+                'id' => $student->id,
+                'name' => $student->first_name . ' ' . $student->last_name,
+                'roll_no' => $student->roll_no,
+                'attendance_status' => $attendance->status ?? null,
+            ];
+        });
 
-            'start_time' => date('h:i A', strtotime($finalStart)),
-            'end_time'   => date('h:i A', strtotime($finalEnd)),
-
-            'class_status' => $classStatus,
-            'attendance_status' => $attendanceStatus,
-            'total_students' => $totalStudents,
-            'attendance_marked' => $markedCount,
-        ]);
-    }
-
-    return response()->json([
-        'status' => 'success',
-        'date'   => $today,
-        'data'   => $result->sortBy('start_time')->values(),
-    ]);
-}
-
-
-
-
-public function todayClassesAttendance(Request $request)
-{
-    $validated = $request->validate([
-        'routine_id' => 'required|exists:class_routines,id',
-    ]);
-
-    $today = now()->toDateString();
-    $currentTime = now()->format('H:i:s');
-
-    $routine = ClassRoutine::with([
-        'days',
-        'course:id,name',
-        'batch:id,name',
-        'classRoom:id,name',
-        'subject:id,name,short_code',
-        'teacher:id,first_name,last_name',
-    ])->findOrFail($validated['routine_id']);
-
-    $dayName = now()->format('l');
-    $show = false;
-
-    /*
-    =====================================
-    CHECK IF CLASS IS SCHEDULED TODAY
-    =====================================
-    */
-
-    if ($routine->repeat_type === 'Does Not Repeat') {
-        $show = $routine->base_date == $today;
-    }
-
-    elseif ($routine->repeat_type === 'Weekly') {
-
-        $days = $routine->days
-            ->whereNull('specific_date')
-            ->pluck('day')
-            ->toArray();
-
-        if (in_array($dayName, $days) && $today >= $routine->base_date) {
-            $show = true;
-        }
-    }
-
-    elseif ($routine->repeat_type === 'Select Dates') {
-
-        $dates = $routine->days
-            ->whereNotNull('specific_date')
-            ->pluck('specific_date')
-            ->map(fn($d) => date('Y-m-d', strtotime($d)))
-            ->toArray();
-
-        $show = in_array($today, $dates);
-    }
-
-    if (!$show) {
         return response()->json([
             'status' => 'success',
-            'message' => 'No class scheduled today for this routine.',
-            'data' => null,
+            'data' => [
+                'routine_id' => $routine->id,
+                'course' => $routine->course?->name,
+                'batch' => $routine->batch?->name,
+                'class' => $routine->classRoom?->name,
+                'subject' => $routine->subject?->name,
+                'teacher' => $routine->teacher?->first_name . ' ' . $routine->teacher?->last_name,
+
+                // 🔥 ADD THESE BACK
+                'start_time' => $routine->start_time,
+                'end_time'   => $routine->end_time,
+
+                'class_status' => $classStatus,
+                'attendance_status' => $attendanceStatus,
+                'total_students' => $totalStudents,
+                'students' => $studentList,
+            ]
         ]);
     }
-
-    /*
-    =====================================
-    GET STUDENTS
-    =====================================
-    */
-
-    $students = Student::where('class', $routine->class_id)
-        ->whereNull('deleted_at')
-        ->get();
-
-    $totalStudents = $students->count();
-
-    /*
-    =====================================
-    GET TODAY ATTENDANCE
-    =====================================
-    */
-
-    $attendances = StudentAttendance::where('attendance_date', $today)
-            ->where('class_routine_id', $routine->id)
-            ->get();
-
-
-    $markedCount = $attendances->count();
-
-    /*
-    =====================================
-    OVERALL ATTENDANCE STATUS
-    =====================================
-    */
-
-    $attendanceStatus = 'not_marked';
-
-    if ($markedCount > 0 && $markedCount < $totalStudents) {
-        $attendanceStatus = 'partial';
-    }
-
-    if ($markedCount == $totalStudents && $totalStudents > 0) {
-        $attendanceStatus = 'marked';
-    }
-
-    /*
-    =====================================
-    CLASS STATUS
-    =====================================
-    */
-
-    $classStatus = 'upcoming';
-
-    if ($currentTime >= $routine->start_time && $currentTime <= $routine->end_time) {
-        $classStatus = 'ongoing';
-    }
-
-    if ($currentTime > $routine->end_time) {
-        $classStatus = 'completed';
-    }
-
-    /*
-    =====================================
-    STUDENT LIST
-    =====================================
-    */
-
-    $studentList = $students->map(function ($student) use ($attendances) {
-
-        $attendance = $attendances
-            ->where('student_id', $student->id)
-            ->first();
-
-        return [
-            'id' => $student->id,
-            'name' => $student->first_name . ' ' . $student->last_name,
-            'roll_no' => $student->roll_no,
-            'attendance_status' => $attendance->status ?? null,
-        ];
-    });
-
-    /*
-    =====================================
-    FINAL RESPONSE
-    =====================================
-    */
-
-    return response()->json([
-        'status' => 'success',
-        'date'   => $today,
-        'data'   => [
-
-            'routine_id' => $routine->id,
-
-            'course' => [
-                'id' => $routine->course->id,
-                'name' => $routine->course->name,
-            ],
-
-            'batch' => [
-                'id' => $routine->batch->id,
-                'name' => $routine->batch->name,
-            ],
-
-            'class' => [
-                'id' => $routine->classRoom->id,
-                'name' => $routine->classRoom->name,
-            ],
-
-            'subject' => [
-                'id' => $routine->subject->id,
-                'name' => $routine->subject->name,
-                'code' => $routine->subject->short_code,
-            ],
-
-            'teacher' => $routine->teacher ? [
-                'id' => $routine->teacher->id,
-                'name' => $routine->teacher->first_name.' '.$routine->teacher->last_name,
-            ] : null,
-
-            'start_time' => date('h:i A', strtotime($routine->start_time)),
-            'end_time'   => date('h:i A', strtotime($routine->end_time)),
-
-            'class_status' => $classStatus,
-
-            'total_students' => $totalStudents,
-            'attendance_marked' => $markedCount,
-            'attendance_status' => $attendanceStatus,
-
-            'students' => $studentList,
-        ],
-    ]);
-}
 
 
     public function markAttendance(Request $request)

@@ -12,4 +12,10 @@ class AcademicYear extends Model
     //
     protected $guarded  = ['id'];
     protected $hidden = ['created_at','updated_at','deleted_at'];
+
+    protected $casts = [
+        'start_date' => 'date',
+        'end_date'   => 'date',
+        'is_active'  => 'boolean',
+    ];
 }
