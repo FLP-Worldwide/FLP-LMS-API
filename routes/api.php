@@ -9,6 +9,7 @@ use App\Http\Controllers\Academics\RoomController;
 use App\Http\Controllers\Academics\SubjectController;
 use App\Http\Controllers\Academics\TeacherAttendanceController;
 use App\Http\Controllers\Academics\TeacherController;
+use App\Http\Controllers\Academics\TeacherBulkController;
 use App\Http\Controllers\Academics\TopicController;
 use App\Http\Controllers\AcademicYearController;
 use App\Http\Controllers\Api\AuthController;
@@ -544,8 +545,11 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
             Route::get('attendance/export-last-3-days', [TeacherAttendanceController::class, 'exportLast3Days']);
             Route::get('/topics/bulk-template', [TopicController::class, 'downloadTemplate']);
             Route::post('/topics/bulk-upload', [TopicController::class, 'bulkImport']);
-
+            Route::post('/teachers/bulk-upload', [TeacherBulkController::class, 'uploadTeachers']);
+            Route::get('/teachers/bulk-template', [TeacherBulkController::class,'downloadTeachers']);
 
         });
 
+
+        
 });

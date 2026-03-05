@@ -18,12 +18,11 @@ use Illuminate\Support\Facades\Crypt;
 
 class StaffOnboardingController extends Controller
 {
-    public function store(Request $request)
+   public function store(Request $request)
     {
         $data = $request->validate([
-             'role_id' => 'required|exists:roles,id',
+            'role_id' => 'required|exists:roles,id',
 
-            // Common
             'name' => 'nullable|string|max:255',
             'first_name' => 'nullable|string|max:100',
             'last_name' => 'nullable|string|max:100',
@@ -35,7 +34,6 @@ class StaffOnboardingController extends Controller
             'department' => 'nullable|string|max:100',
             'joining_date' => 'nullable|date',
 
-            // Teacher-only
             'dob' => 'nullable|date',
             'address' => 'nullable|string',
 
@@ -45,29 +43,33 @@ class StaffOnboardingController extends Controller
             'subject_ids' => 'nullable|array',
             'subject_ids.*' => 'exists:subjects,id',
 
-            // Staff-only
             'id_number' => 'nullable|string|max:100',
+
+            'document1' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'document2' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
         ]);
 
-        return DB::transaction(function () use ($data) {
+        return DB::transaction(function () use ($data, $request) {
 
             $role = Role::findOrFail($data['role_id']);
-            $roleSlug = $role->slug; // teacher, driver, accountant
+            $roleSlug = $role->slug;
             $password = Str::random(10);
 
-            /**
-             * =========================
-             * 1️⃣ NORMALIZE NAME
-             * =========================
-             */
+            /*
+            =========================
+            NORMALIZE NAME
+            =========================
+            */
+
             $fullName = $data['name']
                 ?? trim(($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? ''));
 
-            /**
-             * =========================
-             * 2️⃣ USER (AUTH)
-             * =========================
-             */
+            /*
+            =========================
+            CREATE USER
+            =========================
+            */
+
             $user = User::create([
                 'uid' => strtoupper(substr($roleSlug, 0, 3)) . rand(10000, 99999),
                 'name' => $fullName,
@@ -77,48 +79,69 @@ class StaffOnboardingController extends Controller
                 'role' => $roleSlug,
             ]);
 
-            /**
-             * =========================
-             * 3️⃣ MAP TO INSTITUTE
-             * =========================
-             */
+            /*
+            =========================
+            MAP USER TO INSTITUTE
+            =========================
+            */
+
             InstituteUser::create([
                 'user_id' => $user->id,
                 'role_id' => $role->id,
                 'role' => $roleSlug,
             ]);
 
-            /**
-             * =========================
-             * 4️⃣ TEACHER FLOW
-             * =========================
-             */
+            /*
+            =========================
+            UPLOAD DOCUMENTS
+            =========================
+            */
+
+            $document1Path = null;
+            $document2Path = null;
+
+            if ($request->hasFile('document1')) {
+                $document1Path = $request->file('document1')
+                    ->store('staff_documents', 'public');
+            }
+
+            if ($request->hasFile('document2')) {
+                $document2Path = $request->file('document2')
+                    ->store('staff_documents', 'public');
+            }
+
+            /*
+            =========================
+            TEACHER FLOW
+            =========================
+            */
+
             if ($roleSlug === 'teacher') {
 
                 $teacher = Teacher::create([
                     'user_id' => $user->id,
-                    'first_name'   => $data['first_name'] ?? $fullName,
+                    'first_name' => $data['first_name'] ?? $fullName,
+                    'last_name' => $data['last_name'] ?? null,
                     'employee_id' => $user->uid,
-                    'last_name'    => $data['last_name'] ?? null,
-                    'designation'  => $data['designation'] ?? 'Teacher',
-                    'department'   => $data['department'] ?? null,
+                    'designation' => $data['designation'] ?? 'Teacher',
+                    'department' => $data['department'] ?? null,
                     'joining_date' => $data['joining_date'] ?? null,
                 ]);
 
                 TeacherDetail::create([
                     'teacher_id' => $teacher->id,
-                    'phone'      => $data['phone'],
-                    'email'      => $data['email'],
-                    'dob'        => $data['dob'] ?? null,
-                    'address'    => $data['address'] ?? null,
+                    'phone' => $data['phone'],
+                    'email' => $data['email'],
+                    'dob' => $data['dob'] ?? null,
+                    'address' => $data['address'] ?? null,
+                    'document1' => $document1Path,
+                    'document2' => $document2Path,
                 ]);
 
-                // 🔗 Attach classes
                 if (!empty($data['class_room_ids'])) {
                     $teacher->classRooms()->sync($data['class_room_ids']);
                 }
 
-                // 🔗 Attach subjects
                 if (!empty($data['subject_ids'])) {
                     $teacher->subjects()->sync($data['subject_ids']);
                 }
@@ -134,17 +157,20 @@ class StaffOnboardingController extends Controller
                 ], 201);
             }
 
-            /**
-             * =========================
-             * 5️⃣ STAFF FLOW
-             * =========================
-             */
+            /*
+            =========================
+            STAFF FLOW
+            =========================
+            */
+
             StaffDetail::create([
                 'user_id' => $user->id,
                 'phone' => $data['phone'],
                 'designation' => $data['designation'] ?? ucfirst($roleSlug),
                 'joining_date' => $data['joining_date'] ?? null,
                 'id_number' => $data['id_number'] ?? null,
+                'document1' => $document1Path,
+                'document2' => $document2Path,
             ]);
 
             return response()->json([
