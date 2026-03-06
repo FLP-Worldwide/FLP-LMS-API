@@ -296,4 +296,158 @@ class StudentFilterController extends Controller
     }
 
 
+
+
+
+
+    public function archivedStudents(Request $request)
+    {
+        $classId = $request->class_id;
+
+        $query = Student::with(['details','classRoom'])
+            ->whereNotNull('class');
+
+        /*
+        ============================
+        FILTER BY CLASS (OPTIONAL)
+        ============================
+        */
+
+        if ($classId) {
+            $query->where('class', $classId);
+        }
+
+        /*
+        ============================
+        NOT ASSIGNED TO ACTIVE BATCH
+        ============================
+        */
+
+       $query->whereDoesntHave('batches', function ($q) {
+            $q->where('batch_students.is_active', 1);
+        });
+
+        $students = $query->get()->map(function ($student) {
+
+            return [
+
+                'id' => $student->id,
+
+                'student_id' => $student->admission_no,
+
+                'name' => $student->first_name . ' ' . $student->last_name,
+
+                'class' => $student->classRoom->name ?? '-',
+
+                'phone' => optional($student->details)->phone ?? '-',
+
+                'gender' => optional($student->details)->gender ?? '-',
+
+                'dob' => optional($student->details)->dob ?? '-',
+
+                'status' => 'archived'
+
+            ];
+
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'total' => $students->count(),
+            'data' => $students
+        ]);
+    }
+
+
+    public function archiveStudent($id)
+    {
+
+        $student = Student::where('id',$id)
+            ->whereDoesntHave('batches', function ($q) {
+                $q->where('batch_students.is_active',1);
+            })
+            ->first();
+
+        if(!$student){
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Student cannot be archived because assigned to active batch.'
+            ],422);
+        }
+
+        $student->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Student archived successfully'
+        ]);
+    }
+    public function archiveStudentsBulk(Request $request)
+    {
+
+        $request->validate([
+            'student_ids' => 'required|array'
+        ]);
+
+        $students = Student::whereIn('id',$request->student_ids)
+            ->whereDoesntHave('batches', function ($q) {
+                $q->where('batch_students.is_active',1);
+            })
+            ->get();
+
+        foreach($students as $student){
+            $student->delete();
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Students archived successfully'
+        ]);
+    }
+
+    public function archivedStudentsList()
+    {
+
+        $students = Student::onlyTrashed()
+            ->with(['details','classRoom'])
+            ->get()
+            ->map(function($student){
+
+                return [
+
+                    'id' => $student->id,
+
+                    'student_id' => $student->admission_no,
+
+                    'name' => $student->first_name.' '.$student->last_name,
+
+                    'class' => $student->classRoom->name ?? '-',
+
+                    'phone' => optional($student->details)->phone ?? '-',
+
+                    'parent_name' => optional($student->details)->father_name ?? '-',
+
+                    'dob' => optional($student->details)->dob ?? '-',
+
+                    'joining_date' => $student->admission_date ?? '-',
+
+                    'deleted_at' => $student->deleted_at
+
+                ];
+
+            });
+
+        return response()->json([
+            'status' => 'success',
+            'total' => $students->count(),
+            'data' => $students
+        ]);
+    }
+
+
+
+
+
+
+
 }

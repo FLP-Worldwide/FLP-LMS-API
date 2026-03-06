@@ -65,6 +65,8 @@ use App\Http\Controllers\Settings\ZoomClassController;
 use App\Http\Controllers\StaffManage\LeaveController;
 use App\Http\Controllers\Students\StudentController;
 use App\Http\Controllers\Students\StudentFilterController;
+use App\Http\Controllers\Students\StudentImportController;
+use App\Http\Controllers\Students\StudentQuickImportController;
 use App\Http\Controllers\Transport\StudentTransportController;
 use App\Http\Controllers\Transport\VehicleController;
 use Illuminate\Support\Facades\Route;
@@ -547,9 +549,23 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
             Route::post('/topics/bulk-upload', [TopicController::class, 'bulkImport']);
             Route::post('/teachers/bulk-upload', [TeacherBulkController::class, 'uploadTeachers']);
             Route::get('/teachers/bulk-template', [TeacherBulkController::class,'downloadTeachers']);
+            Route::post('/students/quick-import/template', [StudentQuickImportController::class,'downloadTemplate']);
+            Route::post('/students/quick-import', [StudentQuickImportController::class,'importStudents']);
+            Route::post('/students/export-update-template', [StudentQuickImportController::class,'exportUpdateTemplate']);
+            Route::post('/students/import-update', [StudentQuickImportController::class,'importUpdateStudents']);
+            Route::get('/students/import/new/template', [StudentQuickImportController::class,'downloadNewStudentTemplate']);
+            Route::post('/students/import/new', [StudentQuickImportController::class,'importNewStudents']);
+
+            Route::get('/students/export/all', [StudentQuickImportController::class,'exportAllStudents']);
+            Route::get('/students/archived', [StudentFilterController::class,'archivedStudents']);
+            Route::delete('/students/archive/{id}', [StudentFilterController::class,'archiveStudent']);
+            Route::post('/students/archive/bulk', [StudentFilterController::class,'archiveStudentsBulk']);
+            Route::get('/students/archived/list', [StudentFilterController::class,'archivedStudentsList']);
+
+
 
         });
 
 
-        
+
 });
