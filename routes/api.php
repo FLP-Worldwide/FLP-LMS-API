@@ -562,6 +562,9 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
             Route::post('/students/archive/bulk', [StudentFilterController::class,'archiveStudentsBulk']);
             Route::get('/students/archived/list', [StudentFilterController::class,'archivedStudentsList']);
 
+            Route::get('/import-report', [StudentQuickImportController::class, 'studentUploadReport']);
+            Route::get('/students/import-report/{fileId}', [StudentQuickImportController::class, 'studentUploadErrors']);
+
 
 
         });

@@ -83,17 +83,26 @@ class StudentQuickImportController extends Controller
         );
     }
 
-    public function importNewStudents(Request $request)
+   public function importNewStudents(Request $request)
     {
+
         $request->validate([
             'file' => 'required|file|mimes:xlsx,csv'
         ]);
 
-        Excel::import(new NewStudentImport, $request->file('file'));
+        $fileName = $request->file('file')->getClientOriginalName();
+
+        $file = \App\Models\StudentImportFile::create([
+            'file_name' => $fileName
+        ]);
+
+        $import = new NewStudentImport($file->id);
+
+        Excel::import($import, $request->file('file'));
 
         return response()->json([
             'status' => true,
-            'message' => 'Students imported successfully'
+            'message' => 'Import Completed'
         ]);
     }
 
@@ -106,5 +115,51 @@ class StudentQuickImportController extends Controller
         );
 
     }
+
+    public function studentImportLogs()
+    {
+        $logs = \App\Models\StudentImportLog::latest()
+            ->paginate(20);
+
+        return response()->json([
+            'status' => true,
+            'data' => $logs
+        ]);
+    }
+
+
+    public function studentUploadReport()
+    {
+
+        $reports = \App\Models\StudentImportFile::latest()
+            ->select(
+                'id',
+                'file_name',
+                'total_rows',
+                'success_rows',
+                'failed_rows',
+                'created_at'
+            )
+            ->paginate(10);
+
+        return response()->json([
+            'status' => true,
+            'data' => $reports
+        ]);
+    }
+
+    public function studentUploadErrors($fileId)
+    {
+
+        $errors = \App\Models\StudentImportLog::where('file_id', $fileId)
+            ->paginate(20);
+
+        return response()->json([
+            'status' => true,
+            'data' => $errors
+        ]);
+    }
+
+
 
 }

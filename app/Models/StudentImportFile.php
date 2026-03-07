@@ -6,14 +6,14 @@ use App\Traits\BelongsToInstitute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class StudentImportLog extends Model
+class StudentImportFile extends Model
 {
     use BelongsToInstitute;
     //
     protected $guarded  = ['id'];
-    protected $hidden = ['created_at','updated_at','deleted_at'];
 
-    protected $casts = [
-        'raw_data' => 'array'
-    ];
+    public $total = 0;
+    public $success = 0;
+    public $failed = 0;
+    public $fileId = null;
 }
