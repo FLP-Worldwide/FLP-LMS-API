@@ -16,6 +16,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Maatwebsite\Excel\Concerns\ToCollection;
+use Illuminate\Support\Facades\Validator;
 
 class NewStudentImport implements ToCollection
 {
@@ -49,6 +50,97 @@ class NewStudentImport implements ToCollection
 
             foreach ($header as $index => $column) {
                 $data[$column] = $row[$index] ?? null;
+            }
+
+            $validator = Validator::make($data, [
+
+                'Student Name*' => 'required|string|max:255',
+                'Gender' => 'nullable|in:Male,Female,Other',
+                'Student Current Address' => 'nullable|string|max:500',
+                'Student Email' => 'nullable|email|max:255',
+                'Country Calling Code' => 'required|string|max:5',
+                'Student Phone*' => 'required|digits_between:8,15',
+                'Student Adhar Card' => 'nullable|digits:12',
+                'Date of Birth' => 'nullable|date',
+                'Date of Admission' => 'nullable|date',
+                'Parent Name' => 'nullable|string|max:255',
+                'Parent Email' => 'nullable|email',
+                'Parent Phone' => 'nullable|digits_between:8,15',
+                'Parent Adhar Card' => 'nullable|digits:12',
+                'Parent Profession' => 'nullable|string|max:255',
+                'Mother Name' => 'nullable|string|max:255',
+                'Mother Contact' => 'nullable|digits_between:8,15',
+                'Mother Email' => 'nullable|email',
+                'Guardian Name' => 'nullable|string|max:255',
+                'Guardian Email' => 'nullable|email',
+                'Guardian Phone' => 'nullable|digits_between:8,15',
+                'Assigned Batch Ids' => 'nullable|string',
+                'Batch Joining Date' => 'nullable|date',
+                'Institute/School Name' => 'nullable|string|max:255',
+                'Remarks' => 'nullable|string|max:500',
+                'Standard Id' => 'nullable|string|max:50',
+                'Register Number' => 'nullable|string|max:50',
+                'Birth Place' => 'nullable|string|max:255',
+                'Blood Group' => 'nullable|in:A+,A-,B+,B-,O+,O-,AB+,AB-',
+                'Category' => 'nullable|string|max:100',
+                'Nationality' => 'nullable|string|max:100',
+                'Mother Tongue' => 'nullable|string|max:100',
+                'Pin Code' => 'nullable|digits:6',
+                'Educational Group' => 'nullable|string|max:100',
+                'visit date' => 'nullable|date',
+                'centre vist' => 'nullable|string|max:100',
+                'default*' => 'nullable|string|max:50',
+
+            ], [
+
+                'Student Name*.required' => 'Student Name is required',
+
+                'Gender.in' => 'Invalid Gender. Allowed values: Male, Female, Other',
+
+                'Student Email.email' => 'Invalid Student Email format',
+
+                'Country Calling Code.required' => 'Country Calling Code is required (Example: +91)',
+
+                'Student Phone*.required' => 'Student Phone is required',
+                'Student Phone*.digits_between' => 'Student Phone must be between 8 to 15 digits',
+
+                'Student Adhar Card.digits' => 'Student Adhar Card must be 12 digits',
+
+                'Date of Birth.date' => 'Date of Birth must be a valid date (YYYY-MM-DD)',
+
+                'Date of Admission.date' => 'Date of Admission must be a valid date (YYYY-MM-DD)',
+
+                'Parent Email.email' => 'Invalid Parent Email format',
+
+                'Parent Phone.digits_between' => 'Parent Phone must be between 8 to 15 digits',
+
+                'Parent Adhar Card.digits' => 'Parent Adhar Card must be 12 digits',
+
+                'Mother Contact.digits_between' => 'Mother Contact must be between 8 to 15 digits',
+
+                'Mother Email.email' => 'Invalid Mother Email format',
+
+                'Guardian Email.email' => 'Invalid Guardian Email format',
+
+                'Guardian Phone.digits_between' => 'Guardian Phone must be between 8 to 15 digits',
+
+                'Batch Joining Date.date' => 'Batch Joining Date must be a valid date',
+
+                'Blood Group.in' => 'Invalid Blood Group. Allowed values: A+, A-, B+, B-, O+, O-, AB+, AB-',
+
+                'Pin Code.digits' => 'Pin Code must be exactly 6 digits',
+
+                'visit date.date' => 'Visit Date must be a valid date',
+
+            ]);
+
+            if ($validator->fails()) {
+
+                $this->failedRows++;
+
+                $this->logError($data, $validator->errors()->first());
+
+                continue;
             }
 
             try {
@@ -200,4 +292,6 @@ class NewStudentImport implements ToCollection
             ]
         ]);
     }
+
+
 }
