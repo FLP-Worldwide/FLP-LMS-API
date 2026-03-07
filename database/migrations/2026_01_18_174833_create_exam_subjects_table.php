@@ -18,7 +18,7 @@ return new class extends Migration
             $table->foreignId('class_id')->constrained('class_rooms')->cascadeOnDelete();
 
             $table->integer('marks');
-            $table->string('subject_id')->nullable();
+            // $table->string('subject_id')->nullable();
             $table->text('description')->nullable();
             $table->string('room_no')->nullable();
 
