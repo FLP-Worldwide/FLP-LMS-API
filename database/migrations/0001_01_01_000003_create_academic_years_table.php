@@ -13,14 +13,25 @@ return new class extends Migration
     {
         Schema::create('academic_years', function (Blueprint $table) {
             $table->id();
+
             $table->foreignId('institute_id')->nullable();
 
-            $table->string('name')->unique(); // 2025-2026
+            $table->string('name'); // 2026-2027
+
             $table->year('start_year');
             $table->year('end_year');
+
+            $table->date('start_date')->nullable();
+            $table->date('end_date')->nullable();
+
+            $table->text('description')->nullable();
+
             $table->boolean('is_active')->default(false);
+
             $table->timestamps();
             $table->softDeletes();
+
+            $table->unique(['institute_id', 'name']);
         });
     }
 
