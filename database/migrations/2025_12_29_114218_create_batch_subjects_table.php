@@ -23,10 +23,6 @@ return new class extends Migration
             $table->softDeletes();
             $table->timestamps();
 
-            $table->unique(
-                ['batch_id', 'subject_id'],
-                'batch_subject_unique'
-            );
         });
     }
 

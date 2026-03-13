@@ -130,4 +130,28 @@ class CourseController extends Controller
         ]);
     }
 
+
+    public function coursesWithBatches()
+    {
+        $courses = Course::with(['batches:id,course_id,name'])
+            ->select('id','name')
+            ->get()
+            ->map(function ($course) {
+
+                return [
+                    'id' => $course->id,
+                    'name' => $course->name,
+                    'batches' => $course->batches->map(fn($batch) => [
+                        'id' => $batch->id,
+                        'name' => $batch->name
+                    ])
+                ];
+            });
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $courses
+        ]);
+    }
+
 }

@@ -13,9 +13,9 @@ class BatchSubject extends Model
     protected $guarded  = ['id'];
     protected $hidden = ['created_at','updated_at','deleted_at'];
 
-    public function subject()
+   public function subject()
     {
-        return $this->belongsTo(Subject::class);
+        return $this->belongsTo(Subject::class, 'subject_id');
     }
 
     public function teacher()

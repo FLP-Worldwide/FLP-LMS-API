@@ -35,4 +35,11 @@ class FeesStructure extends Model
             'fees_structure_batches'
         );
     }
+
+    public function course()
+    {
+        return $this->belongsTo(Course::class);
+    }
+
+
 }

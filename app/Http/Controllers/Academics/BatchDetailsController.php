@@ -133,6 +133,7 @@ class BatchDetailsController extends Controller
 
                 $bs = $batchSubjects[$routine->subject_id] ?? null;
 
+
                 $schedule[] = [
                     'date'        => $date->toDateString(),
                     'day'         => $date->format('l'),
@@ -174,6 +175,31 @@ class BatchDetailsController extends Controller
                     'gender' => $genderStats,
                     'expired_students' => $expiredStudents,
                 ],
+                'subjects' => $batchSubjects->values()->map(function ($s) {
+
+                    return [
+                        'subject' => $s->subject?->name,
+
+                        // existing UI compatible field
+                        'teacher' => $s->teacher?->user?->name,
+
+                        // full object
+                        'teacher_obj' => $s->teacher ? [
+                            'id' => $s->teacher->id,
+                            'user_id' => $s->teacher->user_id,
+                            'name' => $s->teacher->user?->name,
+                            'email' => $s->teacher->user?->email ?? null,
+                        ] : null,
+
+                        'extra_teacher' => $s->extraTeacher?->user?->name,
+
+                        'extra_teacher_obj' => $s->extraTeacher ? [
+                            'id' => $s->extraTeacher->id,
+                            'user_id' => $s->extraTeacher->user_id,
+                            'name' => $s->extraTeacher->user?->name,
+                        ] : null,
+                    ];
+                }),
 
                 'exams' => $exams,
 

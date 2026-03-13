@@ -7,6 +7,48 @@ use Illuminate\Http\Request;
 
 class FeesStructureController extends Controller
 {
+
+    public function structures()
+{
+    $structures = FeesStructure::with([
+        'batches.course:id,name',
+        'batches:id,name,course_id',
+        'installments'
+    ])->latest()->get();
+
+    $data = $structures->map(function ($s) {
+
+        $course = optional($s->batches->first())->course;
+
+        return [
+            'id' => $s->id,
+            'name' => $s->name,
+
+            'course' => $course ? [
+                'id' => $course->id,
+                'name' => $course->name
+            ] : null,
+
+            'course_id' => $course->id ?? null,
+
+            'batches' => $s->batches->map(fn($b) => [
+                'id' => $b->id,
+                'name' => $b->name
+            ]),
+
+            'total_amount' => $s->amount,
+            'is_default' => (bool) $s->is_default,
+
+            'installments' => $s->installments
+        ];
+    });
+
+    return response()->json([
+        'status' => 'success',
+        'data' => $data
+    ]);
+}
+
     public function store(Request $request)
     {
         $request->validate([

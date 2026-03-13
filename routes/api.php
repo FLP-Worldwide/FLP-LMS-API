@@ -394,12 +394,15 @@ Route::middleware(['auth.jwt', 'set.institute'])->group(function () {
 
     });
 
-
+ Route::get('/courses-with-batches', [CourseController::class,'coursesWithBatches']);
     Route::prefix('fees')->group(function () {
         Route::get('/types', [FeesTypeController::class, 'index']);
         Route::post('/types', [FeesTypeController::class, 'store']);
         Route::delete('/types/{id}', [FeesTypeController::class, 'destroy']);
 
+
+
+        Route::get('/structures', [FeesStructureController::class, 'structures']);
         // Fees Structure
         Route::post('/structures', [FeesStructureController::class, 'store']);
         Route::get('/structures/by-class/{classId}', [FeesStructureController::class, 'byClass']);

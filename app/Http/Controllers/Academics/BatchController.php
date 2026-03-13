@@ -114,65 +114,96 @@ class BatchController extends Controller
 
     /**
      * UPDATE BATCH
-     */
-    public function update(Request $request, $id)
-    {
-        $batch = Batch::findOrFail($id);
+    */
 
-        $validated = $request->validate([
-            'name'           => 'required|string|max:100',
-            'academic_year'  => 'required|string',
-            'start_date'     => 'required|date',
-            'end_date'       => 'required|date|after:start_date',
+ public function update(Request $request, $id)
+{
+    $batch = Batch::findOrFail($id);
 
-            'subjects'                     => 'required|array|min:1',
-            'subjects.*.subject_id'        => 'required|exists:subjects,id',
-            'subjects.*.teacher_id'        => 'required|exists:teachers,id',
-            'subjects.*.extra_teacher_id'  => 'nullable|exists:teachers,id',
+    $validated = $request->validate([
+        'name'           => 'required|string|max:100',
+        'academic_year'  => 'required|string',
+        'start_date'     => 'required|date',
+        'end_date'       => 'required|date|after:start_date',
+
+        'subjects'                     => 'required|array|min:1',
+        'subjects.*.subject_id'        => 'required|exists:subjects,id|distinct',
+        'subjects.*.teacher_id'        => 'required|exists:teachers,id',
+        'subjects.*.extra_teacher_id'  => 'nullable|exists:teachers,id',
+    ]);
+
+    DB::beginTransaction();
+
+    try {
+
+        $batch->update([
+            'name'          => $validated['name'],
+            'academic_year' => $validated['academic_year'],
+            'start_date'    => $validated['start_date'],
+            'end_date'      => $validated['end_date'],
         ]);
 
-        DB::beginTransaction();
+        $existingSubjects = BatchSubject::where('batch_id',$batch->id)
+                            ->get()
+                            ->keyBy('subject_id');
 
-        try {
-            $batch->update([
-                'name'          => $validated['name'],
-                'academic_year' => $validated['academic_year'],
-                'start_date'    => $validated['start_date'],
-                'end_date'      => $validated['end_date'],
-            ]);
+        $requestSubjectIds = [];
 
-            BatchSubject::where('batch_id', $batch->id)->delete();
+        foreach ($validated['subjects'] as $sub) {
 
-            foreach ($validated['subjects'] as $sub) {
-                BatchSubject::create([
-                    'batch_id'         => $batch->id,
-                    'subject_id'       => $sub['subject_id'],
-                    'teacher_id'       => $sub['teacher_id'],
+            $requestSubjectIds[] = $sub['subject_id'];
+
+            // अगर subject पहले से मौजूद है → update
+            if(isset($existingSubjects[$sub['subject_id']])){
+
+                $existingSubjects[$sub['subject_id']]->update([
+                    'teacher_id' => $sub['teacher_id'],
                     'extra_teacher_id' => $sub['extra_teacher_id'] ?? null,
                 ]);
+
             }
+            // अगर नया subject है → insert
+            else{
 
-            DB::commit();
+                BatchSubject::create([
+                    'batch_id' => $batch->id,
+                    'subject_id' => $sub['subject_id'],
+                    'teacher_id' => $sub['teacher_id'],
+                    'extra_teacher_id' => $sub['extra_teacher_id'] ?? null,
+                ]);
 
-            return response()->json([
-                'status'  => 'success',
-                'message' => 'Batch updated successfully',
-                'data'    => $batch->load([
-                    'course',
-                    'subjects.subject',
-                    'subjects.teacher',
-                    'subjects.extraTeacher'
-                ])
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'status'  => 'error',
-                'message' => $e->getMessage()
-            ], 422);
+            }
         }
+
+        // remove deleted subjects
+        BatchSubject::where('batch_id',$batch->id)
+            ->whereNotIn('subject_id',$requestSubjectIds)
+            ->delete();
+
+        DB::commit();
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Batch updated successfully',
+            'data'    => $batch->load([
+                'course',
+                'subjects.subject',
+                'subjects.teacher.user',
+                'subjects.extraTeacher.user'
+            ])
+        ]);
+
+    } catch (\Exception $e) {
+
+        DB::rollBack();
+
+        return response()->json([
+            'status'  => 'error',
+            'message' => $e->getMessage()
+        ], 422);
+
     }
+}
 
     /**
      * DELETE BATCH
