@@ -15,10 +15,12 @@ class StudentFeeController extends Controller
     /**
      * Assign fees structure to student
      */
+
     public function assign(Request $request)
     {
         $request->validate([
-            'student_id' => 'required|exists:students,id',
+            'student_ids' => 'required|array',
+            'student_ids.*' => 'exists:students,id',
             'fees_structure_id' => 'required|exists:fees_structures,id',
 
             'extra_installments' => 'nullable|array',
@@ -32,80 +34,92 @@ class StudentFeeController extends Controller
         DB::beginTransaction();
 
         try {
+
             /**
-             * 1️⃣ Load fees structure with base installments
+             * 1️⃣ Load structure with base installments
              */
             $structure = FeesStructure::with('installments')
                 ->findOrFail($request->fees_structure_id);
 
-            /**
-             * 2️⃣ Create or update student fee assignment
-             */
-            $studentFee = StudentFee::updateOrCreate(
-                [
-                    'student_id' => $request->student_id,
-                    'fees_structure_id' => $structure->id,
-                ],
-                [] // institute_id handled by trait
-            );
+            $assignedStudents = [];
 
             /**
-             * 3️⃣ Reset old installments (safe re-assign)
+             * 2️⃣ Loop through students
              */
-            $studentFee->installments()->delete();
+            foreach ($request->student_ids as $studentId) {
 
-            $totalAmount = 0;
+                $studentFee = StudentFee::updateOrCreate(
+                    [
+                        'student_id' => $studentId,
+                        'fees_structure_id' => $structure->id,
+                    ],
+                    []
+                );
 
-            /**
-             * 4️⃣ Copy base installments from structure
-             */
-            foreach ($structure->installments as $item) {
-                StudentFeeInstallment::create([
-                    'student_fee_id' => $studentFee->id,
-                    'fee_type_id' => $item->fee_type_id,
-                    'assign_type' => $item->assign_type,
-                    'offset' => $item->offset,
-                    'amount' => $item->amount,
-                    'is_extra' => false,
-                ]);
+                /**
+                 * 3️⃣ Reset old installments
+                 */
+                $studentFee->installments()->delete();
 
-                $totalAmount += $item->amount;
-            }
+                $totalAmount = 0;
 
-            /**
-             * 5️⃣ Add student-specific extra installments
-             */
-            if ($request->filled('extra_installments')) {
-                foreach ($request->extra_installments as $extra) {
+                /**
+                 * 4️⃣ Copy base installments
+                 */
+                foreach ($structure->installments as $item) {
+
                     StudentFeeInstallment::create([
                         'student_fee_id' => $studentFee->id,
-                        'fee_type_id' => $extra['fee_type_id'],
-                        'assign_type' => $extra['assign_type'],
-                        'offset' => $extra['offset'],
-                        'amount' => $extra['amount'],
-                        'is_extra' => true,
+                        'fee_type_id' => $item->fee_type_id,
+                        'assign_type' => $item->assign_type,
+                        'offset' => $item->offset,
+                        'amount' => $item->amount,
+                        'is_extra' => false,
                     ]);
 
-                    $totalAmount += $extra['amount'];
+                    $totalAmount += $item->amount;
                 }
-            }
 
-            /**
-             * 6️⃣ Update final total
-             */
-            $studentFee->update([
-                'total_amount' => $totalAmount,
-            ]);
+                /**
+                 * 5️⃣ Add extra installments
+                 */
+                if ($request->filled('extra_installments')) {
+
+                    foreach ($request->extra_installments as $extra) {
+
+                        StudentFeeInstallment::create([
+                            'student_fee_id' => $studentFee->id,
+                            'fee_type_id' => $extra['fee_type_id'],
+                            'assign_type' => $extra['assign_type'],
+                            'offset' => $extra['offset'],
+                            'amount' => $extra['amount'],
+                            'is_extra' => true,
+                        ]);
+
+                        $totalAmount += $extra['amount'];
+                    }
+                }
+
+                /**
+                 * 6️⃣ Update total
+                 */
+                $studentFee->update([
+                    'total_amount' => $totalAmount,
+                ]);
+
+                $assignedStudents[] = $studentFee->id;
+            }
 
             DB::commit();
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Fees assigned to student successfully',
-                'data' => $studentFee->load('installments.feesType', 'structure')
+                'message' => 'Fees assigned to students successfully',
+                'assigned_count' => count($assignedStudents)
             ]);
 
         } catch (\Exception $e) {
+
             DB::rollBack();
 
             return response()->json([
