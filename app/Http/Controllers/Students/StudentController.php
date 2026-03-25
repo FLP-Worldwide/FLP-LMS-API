@@ -19,24 +19,88 @@ class StudentController extends Controller
 
     public function index(Request $request)
     {
+        $request->validate([
+            'q' => 'nullable|string',
+            'class_id' => 'nullable|exists:class_rooms,id',
+            'course_id' => 'nullable|exists:courses,id',
+            'batch_id' => 'nullable|exists:batches,id',
+            'status' => 'nullable|string',
+        ]);
+
         $search = trim($request->get('q'));
 
-        $students = Student::with('details')
+        $classIds = collect();
+
+        /**
+         * ✅ 1. Direct class filter
+         */
+        if ($request->filled('class_id')) {
+            $classIds->push($request->class_id);
+        }
+
+        /**
+         * ✅ 2. Course → class
+         */
+        if ($request->filled('course_id')) {
+            $course = \App\Models\Course::find($request->course_id);
+            if ($course) {
+                $classIds->push($course->standard_id);
+            }
+        }
+
+        /**
+         * ✅ 3. Batch → course → class
+         */
+        if ($request->filled('batch_id')) {
+            $batch = \App\Models\Batch::find($request->batch_id);
+
+            if ($batch) {
+                $course = \App\Models\Course::find($batch->course_id);
+                if ($course) {
+                    $classIds->push($course->standard_id);
+                }
+            }
+        }
+
+        $classIds = $classIds->unique()->values();
+
+        /**
+         * 🔥 MAIN QUERY
+         */
+        $students = Student::with(['details', 'classRoom'])
+
+            // ✅ SEARCH
             ->when($search, function ($query) use ($search) {
                 $query->where(function ($q) use ($search) {
 
                     $q->where('first_name', 'LIKE', "%{$search}%")
-                    ->orWhere('last_name', 'LIKE', "%{$search}%")
-                    ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"])
-                    ->orWhere('admission_no', 'LIKE', "%{$search}%")
-                    ->orWhere('roll_no', 'LIKE', "%{$search}%")
-                    ->orWhereHas('details', function ($dq) use ($search) {
-                        $dq->where('phone', 'LIKE', "%{$search}%");
-                    });
+                        ->orWhere('last_name', 'LIKE', "%{$search}%")
+                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"])
+                        ->orWhere('admission_no', 'LIKE', "%{$search}%")
+                        ->orWhere('roll_no', 'LIKE', "%{$search}%")
+                        ->orWhereHas('details', function ($dq) use ($search) {
+                            $dq->where('phone', 'LIKE', "%{$search}%");
+                        });
                 });
             })
+
+            // ✅ CLASS FILTER
+            ->when($classIds->isNotEmpty(), function ($q) use ($classIds) {
+                $q->whereIn('class', $classIds);
+            })
+
+            // ✅ STATUS FILTER
+            ->when(
+                $request->filled('status') && strtolower($request->status) !== 'all',
+                function ($q) use ($request) {
+                    $q->where('status', strtolower($request->status));
+                }
+            )
+
             ->latest()
             ->get()
+
+            // ✅ RESPONSE FORMAT
             ->map(function ($s) {
                 return [
                     'id' => $s->id,
@@ -60,10 +124,17 @@ class StudentController extends Controller
 
         return response()->json([
             'status' => 'success',
+            'filters' => [
+                'q' => $search,
+                'class_id' => $request->class_id,
+                'course_id' => $request->course_id,
+                'batch_id' => $request->batch_id,
+                'status' => $request->status ?? 'ALL',
+            ],
+            'count' => $students->count(),
             'data' => $students,
         ]);
     }
-
 
 
    public function store(Request $request)
